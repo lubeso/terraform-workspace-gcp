@@ -45,7 +45,7 @@ resource "google_compute_url_map" "main" {
 }
 
 resource "google_compute_url_map" "http" {
-  name = "${google_compute_url_map.main.name}-http-redirect"
+  name = "http"
   default_url_redirect {
     https_redirect = true
     strip_query    = false
