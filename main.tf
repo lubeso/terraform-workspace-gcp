@@ -116,6 +116,7 @@ resource "google_artifact_registry_repository" "docker" {
   # Required arguments
   repository_id = "docker"
   format        = "DOCKER"
+  location      = "us-east1"
   # Optional arguments
   # Nothing to do here...
 }
