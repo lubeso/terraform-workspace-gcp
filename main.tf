@@ -16,13 +16,36 @@ resource "google_compute_managed_ssl_certificate" "default" {
   }
 }
 
-moved {
-  from = google_compute_url_map.https
-  to   = google_compute_url_map.main
-}
-
 resource "google_compute_url_map" "main" {
   name            = google_compute_global_address.main.name
+  default_service = google_compute_backend_bucket.static.id
+  dynamic "host_rule" {
+    for_each = toset(var.websites)
+    content {
+      hosts        = ["${host_rule.key}.${var.domain}"]
+      path_matcher = host_rule.key
+    }
+  }
+  dynamic "path_matcher" {
+    for_each = toset(var.websites)
+    content {
+      name            = path_matcher.key
+      default_service = google_compute_backend_bucket.static.id
+      path_rule {
+        paths = ["/*"]
+        route_action {
+          url_rewrite {
+            path_prefix_rewrite = "/${path_matcher.key}/"
+          }
+        }
+        service = google_compute_backend_bucket.static.id
+      }
+    }
+  }
+}
+
+resource "google_compute_url_map" "https" {
+  name            = "https"
   default_service = google_compute_backend_bucket.static.id
   dynamic "host_rule" {
     for_each = toset(var.websites)
