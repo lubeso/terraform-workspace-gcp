@@ -51,7 +51,7 @@ moved {
 }
 
 resource "google_compute_url_map" "main" {
-  name = "${google_compute_global_address.main.name}-https-redirect"
+  name = "${google_compute_global_address.main.name}-http-redirect"
   default_url_redirect {
     https_redirect = true
     strip_query    = false
