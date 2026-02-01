@@ -2,11 +2,6 @@ data "google_client_config" "main" {
   # This block is purposely empty
 }
 
-import {
-  to = google_compute_url_map.main
-  id = var.google_compute_url_map_id
-}
-
 resource "google_compute_global_address" "main" {
   name = "default"
 }
