@@ -64,7 +64,7 @@ resource "google_compute_target_http_proxy" "main" {
 }
 
 resource "google_compute_global_forwarding_rule" "https" {
-  name                  = "${google_compute_url_map.main.name}-https"
+  name                  = "https"
   target                = google_compute_target_https_proxy.main.id
   ip_address            = google_compute_global_address.main.id
   ip_protocol           = "TCP"
