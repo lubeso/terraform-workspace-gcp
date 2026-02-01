@@ -16,11 +16,6 @@ resource "google_compute_managed_ssl_certificate" "default" {
   }
 }
 
-moved {
-  from = google_compute_url_map.main
-  to   = google_compute_url_map.https
-}
-
 resource "google_compute_url_map" "https" {
   name            = google_compute_global_address.main.name
   default_service = google_compute_backend_bucket.static.id
