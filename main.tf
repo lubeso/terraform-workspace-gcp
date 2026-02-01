@@ -9,7 +9,7 @@ resource "google_compute_global_address" "main" {
 module "storage_bucket_static" {
   source        = "terraform-google-modules/cloud-storage/google//modules/simple_bucket"
   version       = "~> 6.1.0"
-  name          = "static"
+  name          = "static-${data.google_client_config.main.project}"
   location      = data.google_client_config.main.region
   project_id    = data.google_client_config.main.project
   force_destroy = true
