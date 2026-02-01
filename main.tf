@@ -27,7 +27,7 @@ module "storage_bucket_static" {
 }
 
 resource "google_compute_backend_bucket" "static" {
-  bucket_name = module.storage_bucket_static.name
   name        = module.storage_bucket_static.name
+  bucket_name = module.storage_bucket_static.name
   enable_cdn  = true
 }
