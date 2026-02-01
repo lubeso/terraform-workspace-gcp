@@ -49,8 +49,13 @@ resource "google_compute_url_map" "https" {
   }
 }
 
-resource "google_compute_url_map" "http" {
-  name = "http"
+import {
+  to = google_compute_url_map.main
+  id = google_compute_global_address.main.name
+}
+
+resource "google_compute_url_map" "main" {
+  name = google_compute_global_address.main.name
   default_url_redirect {
     https_redirect = true
     strip_query    = false
@@ -64,8 +69,8 @@ resource "google_compute_target_https_proxy" "main" {
 }
 
 resource "google_compute_target_http_proxy" "main" {
-  name    = google_compute_url_map.http.name
-  url_map = google_compute_url_map.http.self_link
+  name    = google_compute_url_map.main.name
+  url_map = google_compute_url_map.main.self_link
 }
 
 resource "google_compute_global_forwarding_rule" "https" {
