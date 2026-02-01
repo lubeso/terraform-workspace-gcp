@@ -1,3 +1,7 @@
+data "google_client_config" "main" {
+  # This block is purposely empty
+}
+
 resource "google_compute_global_address" "main" {
   name = "default"
 }
