@@ -106,3 +106,17 @@ module "storage_bucket_static" {
     }
   ]
 }
+
+import {
+  to = google_compute_network.default
+  id = "default"
+}
+
+resource "google_compute_network" "main" {
+  # Required arguments
+  name = "default"
+  # Optional arguments
+  auto_create_subnetworks         = false
+  delete_default_routes_on_create = true
+  routing_mode                    = "GLOBAL"
+}
