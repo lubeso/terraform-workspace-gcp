@@ -17,8 +17,7 @@ resource "google_compute_managed_ssl_certificate" "main" {
 }
 
 resource "google_compute_url_map" "https" {
-  name            = "https"
-  default_service = google_compute_backend_bucket.static.id
+  name = "https"
   dynamic "host_rule" {
     for_each = toset(var.websites)
     content {
