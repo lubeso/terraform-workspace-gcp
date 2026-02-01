@@ -58,6 +58,14 @@ resource "google_compute_url_map" "main" {
   }
 }
 
+resource "google_compute_url_map" "http" {
+  name = "http"
+  default_url_redirect {
+    https_redirect = true
+    strip_query    = false
+  }
+}
+
 resource "google_compute_target_https_proxy" "main" {
   name             = google_compute_url_map.https.name
   url_map          = google_compute_url_map.https.id
