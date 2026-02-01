@@ -73,7 +73,7 @@ resource "google_compute_global_forwarding_rule" "https" {
 }
 
 resource "google_compute_global_forwarding_rule" "http" {
-  name                  = "${google_compute_url_map.main.name}-http"
+  name                  = "http"
   target                = google_compute_target_http_proxy.main.id
   ip_address            = google_compute_global_address.main.id
   ip_protocol           = "TCP"
