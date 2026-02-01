@@ -34,7 +34,7 @@ resource "google_compute_url_map" "main" {
   }
 }
 
-resource "google_compute_managed_ssl_certificate" "main" {
+resource "google_compute_managed_ssl_certificate" "default" {
   name = google_compute_url_map.main.name
   managed {
     domains = [
@@ -44,15 +44,10 @@ resource "google_compute_managed_ssl_certificate" "main" {
   }
 }
 
-import {
-  to = google_compute_managed_ssl_certificate.main
-  id = google_compute_url_map.main.name
-}
-
 resource "google_compute_target_https_proxy" "main" {
   name             = google_compute_url_map.main.name
   url_map          = google_compute_url_map.main.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.main.id]
+  ssl_certificates = [google_compute_managed_ssl_certificate.default.id]
 }
 
 import {
