@@ -82,7 +82,7 @@ resource "google_compute_url_map" "http" {
 
 resource "google_compute_target_https_proxy" "main" {
   name             = google_compute_url_map.main.name
-  url_map          = google_compute_url_map.main.id
+  url_map          = google_compute_url_map.https.id
   ssl_certificates = [google_compute_managed_ssl_certificate.default.id]
 }
 
