@@ -16,7 +16,12 @@ resource "google_compute_managed_ssl_certificate" "default" {
   }
 }
 
-resource "google_compute_url_map" "https" {
+moved {
+  from = google_compute_url_map.https
+  to   = google_compute_url_map.main
+}
+
+resource "google_compute_url_map" "main" {
   name            = google_compute_global_address.main.name
   default_service = google_compute_backend_bucket.static.id
   dynamic "host_rule" {
@@ -53,8 +58,8 @@ resource "google_compute_url_map" "http" {
 }
 
 resource "google_compute_target_https_proxy" "main" {
-  name             = google_compute_url_map.https.name
-  url_map          = google_compute_url_map.https.id
+  name             = google_compute_url_map.main.name
+  url_map          = google_compute_url_map.main.id
   ssl_certificates = [google_compute_managed_ssl_certificate.default.id]
 }
 
