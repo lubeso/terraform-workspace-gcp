@@ -19,7 +19,7 @@ resource "google_compute_url_map" "main" {
     path_matcher = "default"
   }
   dynamic "host_rule" {
-    for_each = var.websites
+    for_each = toset(var.websites)
     content {
       hosts        = ["${host_rule.key}.${var.domain}"]
       path_matcher = host_rule.key
@@ -39,7 +39,7 @@ resource "google_compute_url_map" "main" {
     }
   }
   dynamic "path_matcher" {
-    for_each = var.websites
+    for_each = toset(var.websites)
     content {
       name            = path_matcher.key
       default_service = google_compute_backend_bucket.static.id
