@@ -6,7 +6,21 @@ resource "google_compute_global_address" "main" {
   name = "default"
 }
 
-import {
-  to = google_compute_global_address.main
-  id = var.google_compute_global_address_id
+module "storage_bucket_static" {
+  source        = "terraform-google-modules/cloud-storage/google//modules/simple_bucket"
+  version       = "~> 6.1.0"
+  name          = "static"
+  location      = data.google_client_config.main.region
+  project_id    = data.google_client_config.main.project
+  force_destroy = true
+  storage_class = "STANDARD"
+  website = {
+    main_page_suffix = "index.html"
+  }
+  iam_members = [
+    {
+      member = "allUsers"
+      role   = "roles/storage.objectViewer"
+    }
+  ]
 }
