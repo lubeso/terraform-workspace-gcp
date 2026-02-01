@@ -14,6 +14,7 @@ module "storage_bucket_static" {
   project_id    = data.google_client_config.main.project
   force_destroy = true
   storage_class = "STANDARD"
+  versioning    = false
   website = {
     main_page_suffix = "index.html"
   }
