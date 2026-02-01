@@ -107,14 +107,23 @@ module "storage_bucket_static" {
   ]
 }
 
-import {
-  to = google_compute_network.main
-  id = "default"
-}
-
 resource "google_compute_network" "main" {
   name                            = "default"
   auto_create_subnetworks         = false
   delete_default_routes_on_create = false
   routing_mode                    = "GLOBAL"
+}
+
+import {
+  to = google_compute_route.default_internet_gateway
+  id = "default-internet-gateway"
+}
+
+resource "google_compute_route" "default_internet_gateway" {
+  # Required arguments
+  name       = "default-internet-gateway"
+  dest_range = "0.0.0.0/0"
+  network    = google_compute_network.main.name
+  # Optional arguments
+  next_hop_gateway = "default-internet-gateway"
 }
