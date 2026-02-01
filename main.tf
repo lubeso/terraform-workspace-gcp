@@ -52,11 +52,6 @@ resource "google_compute_url_map" "http_redirect" {
   }
 }
 
-import {
-  to = google_compute_url_map.http_redirect
-  id = "${google_compute_url_map.main.name}-http-redirect"
-}
-
 resource "google_compute_target_https_proxy" "main" {
   name             = google_compute_url_map.main.name
   url_map          = google_compute_url_map.main.id
@@ -66,11 +61,6 @@ resource "google_compute_target_https_proxy" "main" {
 resource "google_compute_target_http_proxy" "main" {
   name    = google_compute_url_map.main.name
   url_map = google_compute_url_map.http_redirect.self_link
-}
-
-import {
-  to = google_compute_target_http_proxy.main
-  id = google_compute_url_map.main.name
 }
 
 resource "google_compute_global_forwarding_rule" "https" {
@@ -89,11 +79,6 @@ resource "google_compute_global_forwarding_rule" "http" {
   ip_protocol           = "TCP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   port_range            = "80"
-}
-
-import {
-  to = google_compute_global_forwarding_rule.http
-  id = "${google_compute_url_map.main.name}-http"
 }
 
 resource "google_compute_backend_bucket" "static" {
