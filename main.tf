@@ -44,14 +44,6 @@ resource "google_compute_url_map" "https" {
   }
 }
 
-resource "google_compute_url_map" "main" {
-  name = "${google_compute_global_address.main.name}-http-redirect"
-  default_url_redirect {
-    https_redirect = true
-    strip_query    = false
-  }
-}
-
 resource "google_compute_url_map" "http" {
   name = "http"
   default_url_redirect {
