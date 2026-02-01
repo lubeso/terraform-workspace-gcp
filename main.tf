@@ -50,9 +50,19 @@ resource "google_compute_target_https_proxy" "main" {
   ssl_certificates = [google_compute_managed_ssl_certificate.default.id]
 }
 
+
+resource "google_compute_global_forwarding_rule" "https" {
+  name                  = "${google_compute_url_map.main.name}-https"
+  target                = google_compute_target_https_proxy.main.id
+  ip_address            = google_compute_global_address.main.id
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "443"
+}
+
 import {
-  to = google_compute_target_https_proxy.main
-  id = google_compute_url_map.main.name
+  to = google_compute_global_forwarding_rule.https
+  id = "${google_compute_url_map.main.name}-https"
 }
 
 resource "google_compute_backend_bucket" "static" {
