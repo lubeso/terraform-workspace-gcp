@@ -46,11 +46,11 @@ resource "google_compute_url_map" "https" {
 
 
 moved {
-  from = google_compute_url_map.http
-  to   = google_compute_url_map.main
+  from = google_compute_url_map.main
+  to   = google_compute_url_map.http
 }
 
-resource "google_compute_url_map" "main" {
+resource "google_compute_url_map" "http" {
   name = "${google_compute_global_address.main.name}-http-redirect"
   default_url_redirect {
     https_redirect = true
@@ -65,8 +65,8 @@ resource "google_compute_target_https_proxy" "main" {
 }
 
 resource "google_compute_target_http_proxy" "main" {
-  name    = google_compute_url_map.main.name
-  url_map = google_compute_url_map.main.self_link
+  name    = google_compute_global_address.main.name
+  url_map = google_compute_url_map.http.self_link
 }
 
 resource "google_compute_global_forwarding_rule" "https" {
