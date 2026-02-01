@@ -6,11 +6,6 @@ resource "google_compute_global_address" "main" {
   name = "default"
 }
 
-moved {
-  from = google_compute_managed_ssl_certificate.default
-  to   = google_compute_managed_ssl_certificate.main
-}
-
 resource "google_compute_managed_ssl_certificate" "main" {
   name = google_compute_global_address.main.name
   managed {
