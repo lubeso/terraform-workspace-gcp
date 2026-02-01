@@ -44,11 +44,6 @@ resource "google_compute_url_map" "main" {
   }
 }
 
-moved {
-  from = google_compute_url_map.http_redirect
-  to   = google_compute_url_map.http
-}
-
 resource "google_compute_url_map" "http" {
   name = "${google_compute_url_map.main.name}-http-redirect"
   default_url_redirect {
