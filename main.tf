@@ -114,11 +114,6 @@ resource "google_compute_network" "main" {
   routing_mode                    = "GLOBAL"
 }
 
-import {
-  to = google_compute_route.default_internet_gateway
-  id = "default-internet-gateway"
-}
-
 resource "google_compute_route" "default_internet_gateway" {
   # Required arguments
   name       = "default-internet-gateway"
@@ -126,4 +121,19 @@ resource "google_compute_route" "default_internet_gateway" {
   network    = google_compute_network.main.name
   # Optional arguments
   next_hop_gateway = "default-internet-gateway"
+}
+
+import {
+  to = google_compute_subnetwork.main
+  id = "default"
+}
+
+resource "google_compute_subnetwork" "main" {
+  # Required arguments
+  name          = "default"
+  network       = google_compute_network.main.id
+  ip_cidr_range = "10.0.1.0/24"
+  # Optional arguments
+  region                   = "us-east1"
+  private_ip_google_access = true
 }
