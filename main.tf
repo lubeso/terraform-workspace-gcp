@@ -6,6 +6,16 @@ resource "google_compute_global_address" "main" {
   name = "default"
 }
 
+resource "google_compute_managed_ssl_certificate" "default" {
+  name = google_compute_global_address.main.name
+  managed {
+    domains = [
+      for website in var.websites
+      : "${website}.${var.domain}"
+    ]
+  }
+}
+
 resource "google_compute_url_map" "main" {
   name            = google_compute_global_address.main.name
   default_service = google_compute_backend_bucket.static.id
@@ -34,14 +44,17 @@ resource "google_compute_url_map" "main" {
   }
 }
 
-resource "google_compute_managed_ssl_certificate" "default" {
-  name = google_compute_url_map.main.name
-  managed {
-    domains = [
-      for website in var.websites
-      : "${website}.${var.domain}"
-    ]
+resource "google_compute_url_map" "http_redirect" {
+  name = "${google_compute_url_map.main.name}-http-redirect"
+  default_url_redirect {
+    https_redirect = true
+    strip_query    = false
   }
+}
+
+import {
+  to = google_compute_url_map.http_redirect
+  id = "${google_compute_url_map.main.name}-http-redirect"
 }
 
 resource "google_compute_target_https_proxy" "main" {
@@ -50,6 +63,15 @@ resource "google_compute_target_https_proxy" "main" {
   ssl_certificates = [google_compute_managed_ssl_certificate.default.id]
 }
 
+resource "google_compute_target_http_proxy" "main" {
+  name    = google_compute_url_map.main.name
+  url_map = google_compute_url_map.http_redirect.self_link
+}
+
+import {
+  to = google_compute_target_http_proxy.main
+  id = google_compute_url_map.main.name
+}
 
 resource "google_compute_global_forwarding_rule" "https" {
   name                  = "${google_compute_url_map.main.name}-https"
@@ -60,9 +82,18 @@ resource "google_compute_global_forwarding_rule" "https" {
   port_range            = "443"
 }
 
+resource "google_compute_global_forwarding_rule" "http" {
+  name                  = "${google_compute_url_map.main.name}-http"
+  target                = google_compute_target_http_proxy.main.id
+  ip_address            = google_compute_global_address.main.id
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "80"
+}
+
 import {
-  to = google_compute_global_forwarding_rule.https
-  id = "${google_compute_url_map.main.name}-https"
+  to = google_compute_global_forwarding_rule.http
+  id = "${google_compute_url_map.main.name}-http"
 }
 
 resource "google_compute_backend_bucket" "static" {
