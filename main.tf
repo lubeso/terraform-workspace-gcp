@@ -46,11 +46,11 @@ resource "google_compute_url_map" "https" {
 
 
 moved {
-  from = google_compute_url_map.main
-  to   = google_compute_url_map.http
+  from = google_compute_url_map.http
+  to   = google_compute_url_map.main
 }
 
-resource "google_compute_url_map" "http" {
+resource "google_compute_url_map" "main" {
   name = "${google_compute_global_address.main.name}-http-redirect"
   default_url_redirect {
     https_redirect = true
