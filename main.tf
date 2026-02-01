@@ -44,9 +44,10 @@ resource "google_compute_url_map" "https" {
   }
 }
 
-import {
-  to = google_compute_url_map.main
-  id = google_compute_global_address.main.name
+
+moved {
+  from = google_compute_url_map.http
+  to   = google_compute_url_map.main
 }
 
 resource "google_compute_url_map" "main" {
