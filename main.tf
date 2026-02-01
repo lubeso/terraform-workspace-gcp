@@ -106,3 +106,16 @@ module "storage_bucket_static" {
     }
   ]
 }
+
+import {
+  to = google_artifact_registry_repository.docker
+  id = "docker"
+}
+
+resource "google_artifact_registry_repository" "docker" {
+  # Required arguments
+  repository_id = "docker"
+  format        = "DOCKER"
+  # Optional arguments
+  # Nothing to do here...
+}
