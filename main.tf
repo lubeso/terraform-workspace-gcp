@@ -125,7 +125,7 @@ resource "google_compute_route" "default_internet_gateway" {
 
 import {
   to = google_compute_subnetwork.main
-  id = "regions/us-east1/subnetworks/default"
+  id = "us-east1/default"
 }
 
 resource "google_compute_subnetwork" "main" {
