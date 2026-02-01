@@ -113,10 +113,8 @@ import {
 }
 
 resource "google_compute_network" "main" {
-  # Required arguments
-  name = "default"
-  # Optional arguments
+  name                            = "default"
   auto_create_subnetworks         = false
-  delete_default_routes_on_create = true
+  delete_default_routes_on_create = false
   routing_mode                    = "GLOBAL"
 }
