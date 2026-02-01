@@ -108,7 +108,7 @@ module "storage_bucket_static" {
 }
 
 import {
-  to = google_compute_network.default
+  to = google_compute_network.main
   id = "default"
 }
 
