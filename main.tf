@@ -34,6 +34,21 @@ resource "google_compute_url_map" "main" {
   }
 }
 
+resource "google_compute_managed_ssl_certificate" "default" {
+  name = google_compute_url_map.main.name
+  managed {
+    domains = [
+      for website in var.websites
+      : "${website}.${var.domain}"
+    ]
+  }
+}
+
+import {
+  to = google_compute_managed_ssl_certificate.default
+  id = google_compute_url_map.main.name
+}
+
 resource "google_compute_backend_bucket" "static" {
   name        = module.storage_bucket_static.name
   bucket_name = module.storage_bucket_static.name
