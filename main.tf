@@ -106,34 +106,3 @@ module "storage_bucket_static" {
     }
   ]
 }
-
-resource "google_compute_network" "main" {
-  name                            = "default"
-  auto_create_subnetworks         = false
-  delete_default_routes_on_create = false
-  routing_mode                    = "GLOBAL"
-}
-
-resource "google_compute_route" "default_internet_gateway" {
-  # Required arguments
-  name       = "default-internet-gateway"
-  dest_range = "0.0.0.0/0"
-  network    = google_compute_network.main.name
-  # Optional arguments
-  next_hop_gateway = "default-internet-gateway"
-}
-
-import {
-  to = google_compute_subnetwork.main
-  id = "us-east1/default"
-}
-
-resource "google_compute_subnetwork" "main" {
-  # Required arguments
-  name          = "default"
-  network       = google_compute_network.main.id
-  ip_cidr_range = "10.0.1.0/24"
-  # Optional arguments
-  region                   = "us-east1"
-  private_ip_google_access = true
-}
