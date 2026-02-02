@@ -106,3 +106,35 @@ module "storage_bucket_static" {
     }
   ]
 }
+
+module "oidc_terraform_cloud" {
+  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0"
+  project = data.google_client_config.main.project
+  service_account = {
+    account_id   = "terraform-cloud"
+    display_name = "Terraform Cloud"
+    iam = {
+      principal = {
+        subject = {
+          attribute_value = "${var.terraform_workspace_id}"
+        }
+      }
+      roles = ["owner"]
+    }
+  }
+  workload_identity_pool = {
+    id           = "terraform-cloud"
+    display_name = "Terraform Cloud"
+  }
+  workload_identity_pool_provider = {
+    attribute_condition = <<-EOF
+    assertion.terraform_workspace_id == '${var.terraform_workspace_id}'
+    EOF
+    attribute_mapping = {
+      "google.subject" = "assertion.terraform_workspace_id"
+    }
+    oidc = {
+      issuer_uri = "https://app.terraform.io"
+    }
+  }
+}
