@@ -138,3 +138,48 @@ module "oidc_terraform_cloud" {
     }
   }
 }
+
+module "oidc_github_actions" {
+  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0"
+  project = data.google_client_config.main.project
+  service_account = {
+    account_id   = "github-actions"
+    display_name = "GitHub Actions"
+    iam = {
+      principal = {
+        subject = {
+          attribute_value = var.github_owner_id
+        }
+      }
+      roles = [
+        "artifactregistry.admin",
+        "cloudbuild.builds.builder",
+        "run.admin",
+        "storage.admin",
+      ]
+    }
+  }
+
+  workload_identity_pool = {
+    id           = "github-actions"
+    display_name = "GitHub Actions"
+  }
+
+  workload_identity_pool_provider = {
+    attribute_condition = <<-EOF
+    (
+      assertion.actor_id == '${var.github_owner_id}'
+      && (
+        assertion.ref == 'refs/heads/main'
+        || assertion.ref.startsWith('refs/tags/')
+      )
+    )
+    EOF
+    attribute_mapping = {
+      "google.subject" = "assertion.repository_owner_id"
+    }
+    oidc = {
+      issuer_uri = "https://token.actions.githubusercontent.com"
+    }
+  }
+}
