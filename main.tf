@@ -106,3 +106,43 @@ module "storage_bucket_static" {
     }
   ]
 }
+
+data "google_compute_default_service_account" "main" {
+  # This block is purposely empty
+}
+
+import {
+  to = google_project_iam_member.default_compute_service_account_user
+  id = join(
+    " ",
+    [
+      data.google_client_config.main.project,
+      "roles/iam.serviceAccountUser",
+      data.google_compute_default_service_account.main.member
+    ],
+  )
+}
+
+resource "google_project_iam_member" "default_compute_service_account_user" {
+  project = data.google_client_config.main.project
+  role    = "roles/iam.serviceAccountUser"
+  member  = data.google_compute_default_service_account.main.member
+}
+
+import {
+  to = google_project_iam_member.default_compute_token_creator
+  id = join(
+    " ",
+    [
+      data.google_client_config.main.project,
+      "roles/iam.serviceAccountTokenCreator",
+      data.google_compute_default_service_account.main.member
+    ],
+  )
+}
+
+resource "google_project_iam_member" "default_compute_token_creator" {
+  project = data.google_client_config.main.project
+  role    = "roles/iam.serviceAccountTokenCreator"
+  member  = data.google_compute_default_service_account.main.member
+}
