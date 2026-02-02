@@ -6,6 +6,6 @@ variable "websites" {
   type = list(string)
 }
 
-variable "repository_id" {
+variable "terraform_workspace_id" {
   type = string
 }
