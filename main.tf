@@ -12,7 +12,21 @@ resource "google_compute_managed_ssl_certificate" "main" {
     domains = [
       for website in var.websites
       : "${website}.${var.domain}"
+      if website != "blog"
     ]
+  }
+}
+
+resource "google_compute_managed_ssl_certificate" "staging" {
+  name = "staging"
+  managed {
+    domains = concat(
+      [var.domain],
+      [
+        for website in sort(var.websites)
+        : "${website}.${var.domain}"
+      ],
+    )
   }
 }
 
@@ -20,7 +34,11 @@ resource "google_compute_url_map" "https" {
   name            = "https"
   default_service = google_compute_backend_bucket.static.id
   dynamic "host_rule" {
-    for_each = toset(var.websites)
+    for_each = toset([
+      for website in var.websites
+      : "${website}.${var.domain}"
+      if website != "blog"
+    ])
     content {
       hosts        = ["${host_rule.key}.${var.domain}"]
       path_matcher = host_rule.key
