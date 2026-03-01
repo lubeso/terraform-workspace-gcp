@@ -6,17 +6,6 @@ resource "google_compute_global_address" "main" {
   name = "default"
 }
 
-resource "google_compute_managed_ssl_certificate" "main" {
-  name = google_compute_global_address.main.name
-  managed {
-    domains = [
-      for website in var.websites
-      : "${website}.${var.domain}"
-      if website != "blog"
-    ]
-  }
-}
-
 resource "google_compute_managed_ssl_certificate" "staging" {
   name = "staging"
   managed {
