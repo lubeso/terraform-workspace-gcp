@@ -34,7 +34,6 @@ resource "google_compute_url_map" "https" {
     for_each = toset([
       for website in var.websites
       : website
-      if website != "blog"
     ])
     content {
       hosts        = ["${host_rule.key}.${var.domain}"]
@@ -70,7 +69,10 @@ resource "google_compute_url_map" "http" {
 resource "google_compute_target_https_proxy" "main" {
   name             = google_compute_global_address.main.name
   url_map          = google_compute_url_map.https.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.main.id]
+  ssl_certificates = [
+    google_compute_managed_ssl_certificate.main.id,
+    google_compute_managed_ssl_certificate.staging.id,
+  ]
 }
 
 resource "google_compute_target_http_proxy" "main" {
