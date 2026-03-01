@@ -33,7 +33,7 @@ resource "google_compute_url_map" "https" {
   dynamic "host_rule" {
     for_each = toset([
       for website in var.websites
-      : "${website}.${var.domain}"
+      : website
       if website != "blog"
     ])
     content {
