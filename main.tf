@@ -20,13 +20,10 @@ resource "google_compute_managed_ssl_certificate" "main" {
 resource "google_compute_managed_ssl_certificate" "staging" {
   name = "staging"
   managed {
-    domains = concat(
-      [var.domain],
-      [
-        for website in sort(var.websites)
-        : "${website}.${var.domain}"
-      ],
-    )
+    domains = [
+      for website in sort(var.websites)
+      : "${website}.${var.domain}"
+    ]
   }
 }
 
