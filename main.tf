@@ -16,6 +16,41 @@ resource "google_compute_managed_ssl_certificate" "staging" {
   }
 }
 
+resource "google_certificate_manager_dns_authorization" "main" {
+  name   = "default"
+  domain = var.domain
+}
+
+resource "google_certificate_manager_certificate" "main" {
+  name  = "default"
+  scope = "DEFAULT"
+  managed {
+    domains = [
+      var.domain,
+      "*.${var.domain}",
+    ]
+    dns_authorizations = [google_certificate_manager_dns_authorization.main.id]
+  }
+}
+
+resource "google_certificate_manager_certificate_map" "main" {
+  name = "default"
+}
+
+resource "google_certificate_manager_certificate_map_entry" "apex" {
+  name         = "apex"
+  map          = google_certificate_manager_certificate_map.main.name
+  certificates = [google_certificate_manager_certificate.main.id]
+  hostname     = var.domain
+}
+
+resource "google_certificate_manager_certificate_map_entry" "wildcard" {
+  name         = "wildcard"
+  map          = google_certificate_manager_certificate_map.main.name
+  certificates = [google_certificate_manager_certificate.main.id]
+  hostname     = "*.${var.domain}"
+}
+
 resource "google_compute_url_map" "https" {
   name            = "https"
   default_service = google_compute_backend_bucket.static.id

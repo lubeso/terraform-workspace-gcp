@@ -33,7 +33,7 @@ There is no test suite (no `.tftest.hcl` files) and no CI workflow defined in th
 
 ## Architecture
 
-Everything lives in three top-level files with no submodules of its own — `main.tf` composes
+Everything lives in four top-level files with no submodules of its own — `main.tf` composes
 external modules instead:
 
 - **providers.tf** — provider/version constraints only (`google ~> 5.32.0`, `random ~> 3.9.0`).
@@ -41,12 +41,22 @@ external modules instead:
   environment (Terraform Cloud workspace variables), not from this file.
 - **variables.tf** — all inputs: `domain`, `websites` (list), `github_owner_id`, `terraform_workspace_id`.
   No defaults are set here; real values live in `.tfvars` (gitignored) or workspace variables.
+- **outputs.tf** — `certificate_manager_dns_authorization_record`: the DNS CNAME (name/type/data)
+  that must be created manually at the external DNS provider to authorize the Certificate Manager
+  certificate below. This repo does not manage DNS records itself.
 - **main.tf** — three logical groups of resources:
   1. **Global HTTPS load balancer for static sites** — `google_compute_global_address`,
      `google_compute_managed_ssl_certificate` (Google-managed, one cert covering `<website>.<domain>`
-     for every entry in `var.websites`), `google_compute_url_map` (https, with a `host_rule` +
-     `path_matcher` pair generated per website via `dynamic` blocks) and a second url_map (http,
-     unconditional redirect to https), target proxies, and global forwarding rules for ports 80/443.
+     for every entry in `var.websites` — still what the load balancer actually serves),
+     `google_compute_url_map` (https, with a `host_rule` + `path_matcher` pair generated per website
+     via `dynamic` blocks) and a second url_map (http, unconditional redirect to https), target
+     proxies, and global forwarding rules for ports 80/443. Alongside this, a not-yet-wired-in
+     Certificate Manager certificate map (`google_certificate_manager_dns_authorization`,
+     `google_certificate_manager_certificate`, `google_certificate_manager_certificate_map`, and two
+     `google_certificate_manager_certificate_map_entry` resources — apex and wildcard) is being
+     provisioned in preparation for migrating off the classic managed cert; the target HTTPS proxy
+     still points at `google_compute_managed_ssl_certificate.staging` until the DNS authorization
+     CNAME (see outputs.tf) is created out-of-band and the new certificate reaches `ACTIVE`.
   2. **Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by the
      `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
      `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).
