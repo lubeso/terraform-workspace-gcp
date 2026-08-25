@@ -92,7 +92,7 @@ resource "google_compute_backend_bucket" "static" {
 
 module "storage_bucket_static" {
   source        = "terraform-google-modules/cloud-storage/google//modules/simple_bucket"
-  version       = "~> 6.1.0"
+  version       = "~> 12.3.0"
   name          = "static-${data.google_client_config.main.project}"
   location      = data.google_client_config.main.region
   project_id    = data.google_client_config.main.project
@@ -111,7 +111,7 @@ module "storage_bucket_static" {
 }
 
 module "oidc_github_actions" {
-  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0"
+  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.0.0"
   project = data.google_client_config.main.project
   service_account = {
     account_id   = "github-actions"
@@ -156,7 +156,7 @@ module "oidc_github_actions" {
 }
 
 module "oidc_terraform_cloud" {
-  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0"
+  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.0.0"
   project = data.google_client_config.main.project
   service_account = {
     account_id   = "terraform-cloud"
