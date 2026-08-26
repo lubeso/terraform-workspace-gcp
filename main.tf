@@ -6,6 +6,16 @@ resource "google_compute_global_address" "main" {
   name = "default"
 }
 
+resource "google_compute_managed_ssl_certificate" "staging" {
+  name = "staging"
+  managed {
+    domains = [
+      for website in sort(var.websites)
+      : "${website}.${var.domain}"
+    ]
+  }
+}
+
 resource "google_certificate_manager_dns_authorization" "main" {
   name   = "default"
   domain = var.domain

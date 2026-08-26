@@ -53,9 +53,14 @@ external modules instead:
      `google_compute_url_map` (https, with a `host_rule` + `path_matcher` pair generated per website
      via `dynamic` blocks) and a second url_map (http, unconditional redirect to https), target
      proxies, and global forwarding rules for ports 80/443. The classic
-     `google_compute_managed_ssl_certificate` resource this LB used previously has been decommissioned;
-     the DNS authorization CNAME (see outputs.tf) must still exist at the external DNS provider for the
-     certificate to keep renewing.
+     `google_compute_managed_ssl_certificate.staging` resource this LB used previously is mid-decommission:
+     the target HTTPS proxy no longer references it via `ssl_certificates` (it's on `certificate_map`
+     only), but the certificate resource itself stays in config for one more apply cycle — GCP rejects
+     deleting an `sslCertificates` resource in the same apply that detaches it from a proxy
+     (`resourceInUseByAnotherResource`), so the detach and the delete must land as separate applies.
+     Once an apply confirms the proxy is healthy on `certificate_map` alone, remove this resource in a
+     follow-up change. The DNS authorization CNAME (see outputs.tf) must still exist at the external DNS
+     provider for the certificate to keep renewing.
   2. **Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by the
      `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
      `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).
