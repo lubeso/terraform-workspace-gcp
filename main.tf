@@ -91,9 +91,9 @@ resource "google_compute_url_map" "http" {
 }
 
 resource "google_compute_target_https_proxy" "main" {
-  name             = google_compute_global_address.main.name
-  url_map          = google_compute_url_map.https.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.staging.id]
+  name            = google_compute_global_address.main.name
+  url_map         = google_compute_url_map.https.id
+  certificate_map = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.main.id}"
 }
 
 resource "google_compute_target_http_proxy" "main" {
