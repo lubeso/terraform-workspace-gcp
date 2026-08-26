@@ -46,17 +46,16 @@ external modules instead:
   certificate below. This repo does not manage DNS records itself.
 - **main.tf** — three logical groups of resources:
   1. **Global HTTPS load balancer for static sites** — `google_compute_global_address`,
-     `google_compute_managed_ssl_certificate` (Google-managed, one cert covering `<website>.<domain>`
-     for every entry in `var.websites` — still what the load balancer actually serves),
+     a Certificate Manager certificate map (`google_certificate_manager_dns_authorization`,
+     `google_certificate_manager_certificate` — one cert covering the apex domain and `*.<domain>`,
+     `google_certificate_manager_certificate_map`, and two `google_certificate_manager_certificate_map_entry`
+     resources for apex and wildcard) that the target HTTPS proxy references via `certificate_map`,
      `google_compute_url_map` (https, with a `host_rule` + `path_matcher` pair generated per website
      via `dynamic` blocks) and a second url_map (http, unconditional redirect to https), target
-     proxies, and global forwarding rules for ports 80/443. Alongside this, a not-yet-wired-in
-     Certificate Manager certificate map (`google_certificate_manager_dns_authorization`,
-     `google_certificate_manager_certificate`, `google_certificate_manager_certificate_map`, and two
-     `google_certificate_manager_certificate_map_entry` resources — apex and wildcard) is being
-     provisioned in preparation for migrating off the classic managed cert; the target HTTPS proxy
-     still points at `google_compute_managed_ssl_certificate.staging` until the DNS authorization
-     CNAME (see outputs.tf) is created out-of-band and the new certificate reaches `ACTIVE`.
+     proxies, and global forwarding rules for ports 80/443. The classic
+     `google_compute_managed_ssl_certificate` resource this LB used previously has been decommissioned;
+     the DNS authorization CNAME (see outputs.tf) must still exist at the external DNS provider for the
+     certificate to keep renewing.
   2. **Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by the
      `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
      `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).
@@ -72,9 +71,9 @@ external modules instead:
        impersonate an `owner`-role service account, restricted by `attribute_condition` to that
        workspace ID. This is what lets Terraform Cloud runs authenticate to GCP for this same config.
 
-When adding a new static site, add its hostname to `var.websites` — the SSL cert domains, url_map
-host rules, and path matchers all derive from that list automatically; no other resource needs
-editing.
+When adding a new static site, add its hostname to `var.websites` — the url_map host rules and path
+matchers derive from that list automatically, and the wildcard Certificate Manager cert already
+covers any `*.<domain>` hostname; no other resource needs editing.
 
 ## Conventions
 
