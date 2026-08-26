@@ -189,7 +189,7 @@ module "oidc_terraform_cloud" {
     iam = {
       principal = {
         subject = {
-          attribute_value = "${var.terraform_workspace_id}"
+          attribute_value = var.terraform_workspace_id
         }
       }
       roles = ["owner"]
