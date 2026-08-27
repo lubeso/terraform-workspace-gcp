@@ -8,9 +8,11 @@ directories in this repo.
 ## What this provisions
 
 - A global HTTPS load balancer (`google_compute_global_address`, HTTP→HTTPS
-  redirect, a Google-managed SSL certificate covering `<website>.<domain>`
-  for every entry in `var.websites`) fronting a CDN-enabled
-  `google_compute_backend_bucket`.
+  redirect, a Certificate Manager certificate covering the apex domain and
+  `*.<domain>` via DNS authorization) fronting a CDN-enabled
+  `google_compute_backend_bucket`. The URL map's host rules and path matchers
+  are generated per entry in `var.websites`, so any hostname under the
+  wildcard is routable without further certificate changes.
 - A public static storage bucket
   (`terraform-google-modules/cloud-storage//modules/simple_bucket`) serving
   each website as a hostname-routed subdirectory of the same bucket.
@@ -22,6 +24,7 @@ directories in this repo.
 
 | Name | Version |
 |------|---------|
+| terraform | ~> 1.15.0 |
 | google | ~> 7.45.0 |
 | random | ~> 3.9.0 |
 
@@ -47,3 +50,9 @@ Formatting, provider-lock, and validation are enforced via
 
 Real values are supplied via Terraform Cloud workspace variables or a local
 `*.tfvars` file (gitignored — these values are environment-specific).
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| `certificate_manager_dns_authorization_record` | DNS CNAME (name/type/data) that must be created manually at the external DNS provider to authorize the Certificate Manager certificate. This repo does not manage DNS records itself. |
