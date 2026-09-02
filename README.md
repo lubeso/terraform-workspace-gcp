@@ -13,6 +13,16 @@ directories in this repo.
   `google_compute_backend_bucket`. The URL map's host rules and path matchers
   are generated per entry in `var.websites`, so any hostname under the
   wildcard is routable without further certificate changes.
+- The load balancer only accepts traffic from Cloudflare, which proxies DNS
+  for this domain: a Cloud Armor edge security policy
+  (`google_compute_security_policy`, type `CLOUD_ARMOR_EDGE`) allowlists
+  Cloudflare's published IP ranges (fetched live via the `cloudflare` provider's
+  `cloudflare_ip_ranges` data source) on the backend bucket, and the target
+  HTTPS proxy requires Authenticated Origin Pulls — mutual TLS validated
+  against Cloudflare's shared origin-pull CA (fetched live from Cloudflare's
+  docs via the `http` provider, never committed to this repo) via a
+  `google_certificate_manager_trust_config` and
+  `google_network_security_server_tls_policy`.
 - A public static storage bucket
   (`terraform-google-modules/cloud-storage//modules/simple_bucket`) serving
   each website as a hostname-routed subdirectory of the same bucket.
@@ -27,6 +37,8 @@ directories in this repo.
 | terraform | ~> 1.15.0 |
 | google | ~> 7.45.0 |
 | random | ~> 3.9.0 |
+| cloudflare | ~> 5.24.0 |
+| http | ~> 3.6.1 |
 
 ## Usage
 
@@ -56,3 +68,16 @@ Real values are supplied via Terraform Cloud workspace variables or a local
 | Name | Description |
 |------|-------------|
 | `certificate_manager_dns_authorization_record` | DNS CNAME (name/type/data) that must be created manually at the external DNS provider to authorize the Certificate Manager certificate. This repo does not manage DNS records itself. |
+
+## Manual steps
+
+This repo does not manage Cloudflare-side configuration. In addition to the DNS authorization
+record above, the following must be set in the Cloudflare dashboard for the domain:
+
+- **Authenticated Origin Pulls (Global)** must be enabled under SSL/TLS → Origin Server. The
+  load balancer's target HTTPS proxy rejects any connection that doesn't present Cloudflare's
+  shared origin-pull client certificate.
+- The zone's **SSL/TLS encryption mode** must be set to **Full** or **Full (strict)** —
+  Authenticated Origin Pulls has no effect under Flexible or Off.
+- DNS records for `var.domain` and each `var.websites` entry must be proxied (orange-clouded)
+  through Cloudflare, not DNS-only — this is already assumed by the Cloud Armor IP allowlist.
