@@ -117,7 +117,8 @@ resource "google_compute_url_map" "https" {
   dynamic "path_matcher" {
     for_each = toset(var.websites)
     content {
-      name = path_matcher.key
+      name            = path_matcher.key
+      default_service = google_compute_backend_bucket.static.id
       route_rules {
         priority = 1
         service  = google_compute_backend_bucket.static.id
