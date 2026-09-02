@@ -74,6 +74,12 @@ resource "google_certificate_manager_trust_config" "cloudflare_origin_pull" {
   }
 }
 
+resource "google_project_service" "network_security" {
+  project            = data.google_client_config.main.project
+  service            = "networksecurity.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_network_security_server_tls_policy" "cloudflare_origin_pull" {
   name       = "cloudflare-origin-pull"
   location   = "global"
@@ -83,6 +89,8 @@ resource "google_network_security_server_tls_policy" "cloudflare_origin_pull" {
     client_validation_mode         = "REJECT_INVALID"
     client_validation_trust_config = google_certificate_manager_trust_config.cloudflare_origin_pull.id
   }
+
+  depends_on = [google_project_service.network_security]
 }
 
 resource "google_compute_url_map" "https" {
