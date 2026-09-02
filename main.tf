@@ -2,6 +2,17 @@ data "google_client_config" "main" {
   # This block is purposely empty
 }
 
+data "cloudflare_ip_ranges" "main" {}
+
+locals {
+  # google_compute_security_policy rules cap src_ip_ranges at 10 entries per rule, so
+  # Cloudflare's published ranges are split into chunks, one allow rule per chunk.
+  cloudflare_ip_range_chunks = chunklist(
+    concat(data.cloudflare_ip_ranges.main.ipv4_cidrs, data.cloudflare_ip_ranges.main.ipv6_cidrs),
+    10,
+  )
+}
+
 resource "google_compute_global_address" "main" {
   name = "default"
 }
@@ -39,6 +50,39 @@ resource "google_certificate_manager_certificate_map_entry" "wildcard" {
   map          = google_certificate_manager_certificate_map.main.name
   certificates = [google_certificate_manager_certificate.main.id]
   hostname     = "*.${var.domain}"
+}
+
+data "http" "cloudflare_origin_pull_ca" {
+  url = "https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem"
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 200
+      error_message = "Failed to fetch the Cloudflare Authenticated Origin Pull CA certificate (HTTP ${self.status_code})."
+    }
+  }
+}
+
+resource "google_certificate_manager_trust_config" "cloudflare_origin_pull" {
+  name     = "cloudflare-origin-pull"
+  location = "global"
+
+  trust_stores {
+    trust_anchors {
+      pem_certificate = data.http.cloudflare_origin_pull_ca.response_body
+    }
+  }
+}
+
+resource "google_network_security_server_tls_policy" "cloudflare_origin_pull" {
+  name       = "cloudflare-origin-pull"
+  location   = "global"
+  allow_open = "false"
+
+  mtls_policy {
+    client_validation_mode         = "REJECT_INVALID"
+    client_validation_trust_config = google_certificate_manager_trust_config.cloudflare_origin_pull.id
+  }
 }
 
 resource "google_compute_url_map" "https" {
@@ -81,9 +125,10 @@ resource "google_compute_url_map" "http" {
 }
 
 resource "google_compute_target_https_proxy" "main" {
-  name            = google_compute_global_address.main.name
-  url_map         = google_compute_url_map.https.id
-  certificate_map = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.main.id}"
+  name              = google_compute_global_address.main.name
+  url_map           = google_compute_url_map.https.id
+  certificate_map   = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.main.id}"
+  server_tls_policy = google_network_security_server_tls_policy.cloudflare_origin_pull.id
 }
 
 resource "google_compute_target_http_proxy" "main" {
@@ -109,10 +154,43 @@ resource "google_compute_global_forwarding_rule" "http" {
   port_range            = "80"
 }
 
+resource "google_compute_security_policy" "cloudflare_only" {
+  name = "cloudflare-only"
+  type = "CLOUD_ARMOR_EDGE"
+
+  dynamic "rule" {
+    for_each = local.cloudflare_ip_range_chunks
+    content {
+      action      = "allow"
+      priority    = 1000 + rule.key
+      description = "Allow Cloudflare edge IP ranges"
+      match {
+        versioned_expr = "SRC_IPS_V1"
+        config {
+          src_ip_ranges = rule.value
+        }
+      }
+    }
+  }
+
+  rule {
+    action      = "deny(403)"
+    priority    = 2147483647
+    description = "Default deny: traffic not from Cloudflare"
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+  }
+}
+
 resource "google_compute_backend_bucket" "static" {
-  name        = module.storage_bucket_static.name
-  bucket_name = module.storage_bucket_static.name
-  enable_cdn  = true
+  name                 = module.storage_bucket_static.name
+  bucket_name          = module.storage_bucket_static.name
+  enable_cdn           = true
+  edge_security_policy = google_compute_security_policy.cloudflare_only.id
 }
 
 module "storage_bucket_static" {
