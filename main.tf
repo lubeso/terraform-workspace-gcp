@@ -144,10 +144,16 @@ resource "google_compute_url_map" "http" {
 }
 
 resource "google_compute_target_https_proxy" "main" {
-  name              = google_compute_global_address.main.name
-  url_map           = google_compute_url_map.https.id
-  certificate_map   = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.main.id}"
-  server_tls_policy = google_network_security_server_tls_policy.cloudflare_origin_pull.id
+  name            = google_compute_global_address.main.name
+  url_map         = google_compute_url_map.https.id
+  certificate_map = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.main.id}"
+  # Built with the project number rather than server_tls_policy.id (which uses the
+  # project ID) - the sibling cross-service reference in mtls_policy.client_validation_trust_config
+  # was confirmed to canonicalize to project-number form once live, forcing a
+  # perpetual diff; this reference is the same category (a compute.googleapis.com
+  # resource pointing into networksecurity.googleapis.com), so build it the same way
+  # up front.
+  server_tls_policy = "projects/${data.google_project.main.number}/locations/global/serverTlsPolicies/${google_network_security_server_tls_policy.cloudflare_origin_pull.name}"
 }
 
 resource "google_compute_target_http_proxy" "main" {
