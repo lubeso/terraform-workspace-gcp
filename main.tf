@@ -109,16 +109,18 @@ resource "google_compute_url_map" "https" {
   dynamic "path_matcher" {
     for_each = toset(var.websites)
     content {
-      name            = path_matcher.key
-      default_service = google_compute_backend_bucket.static.id
-      path_rule {
-        paths = ["/*"]
+      name = path_matcher.key
+      route_rules {
+        priority = 1
+        service  = google_compute_backend_bucket.static.id
+        match_rules {
+          prefix_match = "/"
+        }
         route_action {
           url_rewrite {
             path_prefix_rewrite = "/${path_matcher.key}/"
           }
         }
-        service = google_compute_backend_bucket.static.id
       }
     }
   }
