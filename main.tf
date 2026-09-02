@@ -2,6 +2,10 @@ data "google_client_config" "main" {
   # This block is purposely empty
 }
 
+data "google_project" "main" {
+  # This block is purposely empty
+}
+
 data "cloudflare_ip_ranges" "main" {}
 
 locals {
@@ -69,7 +73,7 @@ resource "google_certificate_manager_trust_config" "cloudflare_origin_pull" {
 
   trust_stores {
     trust_anchors {
-      pem_certificate = data.http.cloudflare_origin_pull_ca.response_body
+      pem_certificate = trimspace(data.http.cloudflare_origin_pull_ca.response_body)
     }
   }
 }
@@ -86,8 +90,12 @@ resource "google_network_security_server_tls_policy" "cloudflare_origin_pull" {
   allow_open = "false"
 
   mtls_policy {
-    client_validation_mode         = "REJECT_INVALID"
-    client_validation_trust_config = google_certificate_manager_trust_config.cloudflare_origin_pull.id
+    client_validation_mode = "REJECT_INVALID"
+    # GCP canonicalizes this reference to the project *number* form once the resource
+    # exists, so build it that way up front rather than with trust_config.id (which
+    # uses the project ID) - otherwise every subsequent plan sees a diff on this
+    # immutable field and force-replaces the policy.
+    client_validation_trust_config = "projects/${data.google_project.main.number}/locations/global/trustConfigs/${google_certificate_manager_trust_config.cloudflare_origin_pull.name}"
   }
 
   depends_on = [google_project_service.network_security]
