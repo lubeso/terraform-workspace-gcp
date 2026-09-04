@@ -39,12 +39,13 @@ external modules instead:
 - **providers.tf** — provider/version constraints only (`google ~> 5.32.0`, `random ~> 3.9.0`).
   The `provider "google"` block is intentionally empty; project/region/credentials come from the
   environment (Terraform Cloud workspace variables), not from this file.
-- **variables.tf** — all inputs: `domain`, `github_owner_id`, `terraform_workspace_id`.
+- **variables.tf** — all inputs: `domain`, `webhooks` (nested map, see below), `github_owner_id`,
+  `terraform_workspace_id`.
   No defaults are set here; real values live in `.tfvars` (gitignored) or workspace variables.
 - **outputs.tf** — `certificate_manager_dns_authorization_record`: the DNS CNAME (name/type/data)
   that must be created manually at the external DNS provider to authorize the Certificate Manager
   certificate below. This repo does not manage DNS records itself.
-- **main.tf** — three logical groups of resources:
+- **main.tf** — four logical groups of resources:
   1. **Global HTTPS load balancer for static sites** — `google_compute_global_address`,
      a Certificate Manager certificate map (`google_certificate_manager_dns_authorization`,
      `google_certificate_manager_certificate` — one cert covering the apex domain and `*.<domain>`,
@@ -64,7 +65,18 @@ external modules instead:
      `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
      `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).
      `www.<domain>` requests are served directly, path-for-path, from this bucket.
-  3. **OIDC/Workload Identity Federation trust** — two instances of the external module
+  3. **Webhook CD targets** — `local.webhooks_flat` flattens the nested `var.webhooks` map
+     (provider => version => config) into a single map keyed `"<provider>-<version>"`, since
+     `for_each` can't iterate a nested map directly. One `google_artifact_registry_repository`
+     (shared, format `DOCKER`) plus one `google_cloud_run_v2_service` per flattened entry is created
+     from this — each service starts on a placeholder image (`ingress =
+     "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"`, so it's only reachable once wired to the LB) with a
+     `runtime` label (`"go"` by default, overridable e.g. to `"nodejs"`) that GitHub Actions CI reads
+     to pick the Cloud Native Buildpacks (`pack`) builder when it builds and pushes the real image;
+     `lifecycle { ignore_changes = [template[0].containers[0].image] }` keeps Terraform from
+     reverting CI's deploys. The LB routing (serverless NEG, backend service, `webhooks.<domain>`
+     host_rule/path_matcher) that actually exposes these services is added separately.
+  4. **OIDC/Workload Identity Federation trust** — two instances of the external module
      `github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0`, each creating a service account +
      WIF pool/provider:
      - `oidc_github_actions`: lets GitHub Actions in the repo owned by `var.github_owner_id`

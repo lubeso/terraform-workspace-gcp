@@ -25,6 +25,14 @@ directories in this repo.
 - Workload Identity Federation trust for GitHub Actions and for this
   Terraform Cloud workspace itself, via
   [`terraform-module-gcp-oidc`](https://github.com/lubeso/terraform-module-gcp-oidc).
+- CD target resources for webhook handlers: an Artifact Registry Docker
+  repository plus one `google_cloud_run_v2_service` per (provider, version)
+  entry in `var.webhooks`, each starting out on a placeholder image. GitHub
+  Actions CI (outside this repo) builds the real image with Cloud Native
+  Buildpacks (`pack`) — using the service's `runtime` label to pick the
+  buildpack — pushes it to the Artifact Registry repo, and deploys it onto
+  the matching Cloud Run service; Terraform ignores changes to the deployed
+  image so it won't fight CI.
 
 ## Requirements
 
@@ -51,6 +59,7 @@ Formatting, provider-lock, and validation are enforced via
 | Name | Description | Type |
 |------|-------------|------|
 | `domain` | Apex domain; `www.<domain>` is served from the static bucket. | `string` |
+| `webhooks` | Provider => version => config for webhook Cloud Run services, routed at `webhooks.<domain>/<provider>/<version>`. | `map(map(object({ runtime = optional(string, "go") })))` |
 | `github_owner_id` | GitHub user/org ID allowed to assume the GitHub Actions service account via WIF. | `number` |
 | `terraform_workspace_id` | Terraform Cloud workspace ID allowed to assume the Terraform Cloud service account via WIF. | `string` |
 

@@ -136,6 +136,47 @@ resource "google_compute_security_policy" "cloudflare_only" {
   }
 }
 
+locals {
+  webhooks_flat = merge([
+    for provider, versions in var.webhooks : {
+      for version, config in versions :
+      "${provider}-${version}" => {
+        provider = provider
+        version  = version
+        config   = config
+      }
+    }
+  ]...)
+}
+
+resource "google_artifact_registry_repository" "webhooks" {
+  location      = data.google_client_config.main.region
+  repository_id = "webhooks"
+  format        = "DOCKER"
+}
+
+resource "google_cloud_run_v2_service" "webhook" {
+  for_each = local.webhooks_flat
+  name     = "webhook-${each.key}"
+  location = data.google_client_config.main.region
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+
+  template {
+    containers {
+      # Placeholder only - CI deploys the real image built via `pack` to this
+      # service (`gcloud run deploy webhook-${each.key} --image=...`).
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
+    }
+    labels = {
+      runtime = each.value.config.runtime
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image]
+  }
+}
+
 resource "google_compute_backend_bucket" "static" {
   name                 = module.storage_bucket_static.name
   bucket_name          = module.storage_bucket_static.name
