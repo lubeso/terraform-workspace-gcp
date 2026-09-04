@@ -166,26 +166,6 @@ locals {
   ]...)
 }
 
-moved {
-  from = google_cloud_run_v2_service.webhook
-  to   = google_cloud_run_v2_service.webhooks
-}
-
-moved {
-  from = google_compute_region_network_endpoint_group.webhook
-  to   = google_compute_region_network_endpoint_group.webhooks
-}
-
-moved {
-  from = google_compute_backend_service.webhook
-  to   = google_compute_backend_service.webhooks
-}
-
-moved {
-  from = google_cloud_run_v2_service_iam_member.webhook_invoker
-  to   = google_cloud_run_v2_service_iam_member.webhook_invokers
-}
-
 resource "google_artifact_registry_repository" "webhooks" {
   location      = data.google_client_config.main.region
   repository_id = "webhooks"
