@@ -55,34 +55,15 @@ resource "google_certificate_manager_certificate_map_entry" "wildcard" {
 resource "google_compute_url_map" "https" {
   name            = "https"
   default_service = google_compute_backend_bucket.static.id
-  dynamic "host_rule" {
-    for_each = toset([
-      for website in var.websites
-      : website
-    ])
-    content {
-      hosts        = ["${host_rule.key}.${var.domain}"]
-      path_matcher = host_rule.key
-    }
+
+  host_rule {
+    hosts        = ["www.${var.domain}"]
+    path_matcher = "www"
   }
-  dynamic "path_matcher" {
-    for_each = toset(var.websites)
-    content {
-      name            = path_matcher.key
-      default_service = google_compute_backend_bucket.static.id
-      route_rules {
-        priority = 1
-        service  = google_compute_backend_bucket.static.id
-        match_rules {
-          prefix_match = "/"
-        }
-        route_action {
-          url_rewrite {
-            path_prefix_rewrite = "/${path_matcher.key}/"
-          }
-        }
-      }
-    }
+
+  path_matcher {
+    name            = "www"
+    default_service = google_compute_backend_bucket.static.id
   }
 }
 

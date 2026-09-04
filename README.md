@@ -10,9 +10,10 @@ directories in this repo.
 - A global HTTPS load balancer (`google_compute_global_address`, HTTP→HTTPS
   redirect, a Certificate Manager certificate covering the apex domain and
   `*.<domain>` via DNS authorization) fronting a CDN-enabled
-  `google_compute_backend_bucket`. The URL map's host rules and path matchers
-  are generated per entry in `var.websites`, so any hostname under the
-  wildcard is routable without further certificate changes.
+  `google_compute_backend_bucket`. The URL map has a literal `host_rule` for
+  `www.<domain>` that maps straight through to the bucket, path-for-path (no
+  rewriting) — additional hostnames (under the wildcard cert, which needs no
+  further changes) are added as their own `host_rule`/`path_matcher` pair.
 - The load balancer only accepts traffic from Cloudflare, which proxies DNS
   for this domain: a Cloud Armor edge security policy
   (`google_compute_security_policy`, type `CLOUD_ARMOR_EDGE`) allowlists
@@ -20,7 +21,7 @@ directories in this repo.
   `cloudflare_ip_ranges` data source) on the backend bucket.
 - A public static storage bucket
   (`terraform-google-modules/cloud-storage//modules/simple_bucket`) serving
-  each website as a hostname-routed subdirectory of the same bucket.
+  `www.<domain>` requests directly, path-for-path.
 - Workload Identity Federation trust for GitHub Actions and for this
   Terraform Cloud workspace itself, via
   [`terraform-module-gcp-oidc`](https://github.com/lubeso/terraform-module-gcp-oidc).
@@ -49,8 +50,7 @@ Formatting, provider-lock, and validation are enforced via
 
 | Name | Description | Type |
 |------|-------------|------|
-| `domain` | Apex domain that each entry in `websites` is hosted under. | `string` |
-| `websites` | Website hostnames (without the domain) to serve from the static bucket. | `list(string)` |
+| `domain` | Apex domain; `www.<domain>` is served from the static bucket. | `string` |
 | `github_owner_id` | GitHub user/org ID allowed to assume the GitHub Actions service account via WIF. | `number` |
 | `terraform_workspace_id` | Terraform Cloud workspace ID allowed to assume the Terraform Cloud service account via WIF. | `string` |
 
@@ -68,5 +68,5 @@ Real values are supplied via Terraform Cloud workspace variables or a local
 This repo does not manage Cloudflare-side configuration. In addition to the DNS authorization
 record above, the following must be set in the Cloudflare dashboard for the domain:
 
-- DNS records for `var.domain` and each `var.websites` entry must be proxied (orange-clouded)
-  through Cloudflare, not DNS-only — this is already assumed by the Cloud Armor IP allowlist.
+- DNS records for `var.domain` and `www.<domain>` must be proxied (orange-clouded) through
+  Cloudflare, not DNS-only — this is already assumed by the Cloud Armor IP allowlist.

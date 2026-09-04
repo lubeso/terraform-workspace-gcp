@@ -39,7 +39,7 @@ external modules instead:
 - **providers.tf** — provider/version constraints only (`google ~> 5.32.0`, `random ~> 3.9.0`).
   The `provider "google"` block is intentionally empty; project/region/credentials come from the
   environment (Terraform Cloud workspace variables), not from this file.
-- **variables.tf** — all inputs: `domain`, `websites` (list), `github_owner_id`, `terraform_workspace_id`.
+- **variables.tf** — all inputs: `domain`, `github_owner_id`, `terraform_workspace_id`.
   No defaults are set here; real values live in `.tfvars` (gitignored) or workspace variables.
 - **outputs.tf** — `certificate_manager_dns_authorization_record`: the DNS CNAME (name/type/data)
   that must be created manually at the external DNS provider to authorize the Certificate Manager
@@ -50,8 +50,9 @@ external modules instead:
      `google_certificate_manager_certificate` — one cert covering the apex domain and `*.<domain>`,
      `google_certificate_manager_certificate_map`, and two `google_certificate_manager_certificate_map_entry`
      resources for apex and wildcard) that the target HTTPS proxy references via `certificate_map`,
-     `google_compute_url_map` (https, with a `host_rule` + `path_matcher` pair generated per website
-     via `dynamic` blocks) and a second url_map (http, unconditional redirect to https), target
+     `google_compute_url_map` (https, with a literal `host_rule` + `path_matcher` for `www.<domain>`
+     mapping straight through to the backend bucket — no rewrite — plus a top-level `default_service`
+     that catches any other host) and a second url_map (http, unconditional redirect to https), target
      proxies, and global forwarding rules for ports 80/443. The classic
      `google_compute_managed_ssl_certificate` resource this LB used previously has been decommissioned;
      the DNS authorization CNAME (see outputs.tf) must still exist at the external DNS provider for the
@@ -62,8 +63,7 @@ external modules instead:
   2. **Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by the
      `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
      `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).
-     Each website's path matcher rewrites `/*` to `/<website>/` on the same bucket, so all sites are
-     served as subdirectories of one bucket, keyed by hostname.
+     `www.<domain>` requests are served directly, path-for-path, from this bucket.
   3. **OIDC/Workload Identity Federation trust** — two instances of the external module
      `github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0`, each creating a service account +
      WIF pool/provider:
@@ -74,9 +74,10 @@ external modules instead:
        impersonate an `owner`-role service account, restricted by `attribute_condition` to that
        workspace ID. This is what lets Terraform Cloud runs authenticate to GCP for this same config.
 
-When adding a new static site, add its hostname to `var.websites` — the url_map host rules and path
-matchers derive from that list automatically, and the wildcard Certificate Manager cert already
-covers any `*.<domain>` hostname; no other resource needs editing.
+When adding a new hostname (e.g. a `webhooks.<domain>` backend), add a `host_rule` (matching that
+hostname) and a `path_matcher` pointing at its backend service directly in `google_compute_url_map.https` —
+there's no `var.websites` list to derive from anymore. The wildcard Certificate Manager cert already
+covers any `*.<domain>` hostname, so no certificate changes are needed.
 
 ## Conventions
 
