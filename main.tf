@@ -205,9 +205,10 @@ resource "google_compute_region_network_endpoint_group" "webhooks" {
 }
 
 resource "google_compute_backend_service" "webhooks" {
-  for_each             = local.flattened_webhooks
-  name                 = "webhook-${each.key}"
-  edge_security_policy = google_compute_security_policy.cloudflare_only.id
+  for_each              = local.flattened_webhooks
+  name                  = "webhook-${each.key}"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  edge_security_policy  = google_compute_security_policy.cloudflare_only.id
   backend {
     group = google_compute_region_network_endpoint_group.webhooks[each.key].id
   }
