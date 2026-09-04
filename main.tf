@@ -2,6 +2,10 @@ data "google_client_config" "main" {
   # This block is purposely empty
 }
 
+data "google_project" "main" {
+  # This block is purposely empty
+}
+
 data "cloudflare_ip_ranges" "main" {}
 
 locals {
@@ -52,6 +56,51 @@ resource "google_certificate_manager_certificate_map_entry" "wildcard" {
   hostname     = "*.${var.domain}"
 }
 
+data "http" "cloudflare_origin_pull_ca" {
+  url = "https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem"
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 200
+      error_message = "Failed to fetch the Cloudflare Authenticated Origin Pull CA certificate (HTTP ${self.status_code})."
+    }
+  }
+}
+
+resource "google_certificate_manager_trust_config" "cloudflare_origin_pull" {
+  name     = "cloudflare-origin-pull"
+  location = "global"
+
+  trust_stores {
+    trust_anchors {
+      pem_certificate = trimspace(data.http.cloudflare_origin_pull_ca.response_body)
+    }
+  }
+}
+
+resource "google_project_service" "network_security" {
+  project            = data.google_client_config.main.project
+  service            = "networksecurity.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_network_security_server_tls_policy" "cloudflare_origin_pull" {
+  name       = "cloudflare-origin-pull"
+  location   = "global"
+  allow_open = "false"
+
+  mtls_policy {
+    client_validation_mode = "REJECT_INVALID"
+    # GCP canonicalizes this reference to the project *number* form once the resource
+    # exists, so build it that way up front rather than with trust_config.id (which
+    # uses the project ID) - otherwise every subsequent plan sees a diff on this
+    # immutable field and force-replaces the policy.
+    client_validation_trust_config = "projects/${data.google_project.main.number}/locations/global/trustConfigs/${google_certificate_manager_trust_config.cloudflare_origin_pull.name}"
+  }
+
+  depends_on = [google_project_service.network_security]
+}
+
 resource "google_compute_url_map" "https" {
   name            = "https"
   default_service = google_compute_backend_bucket.static.id
@@ -96,6 +145,13 @@ resource "google_compute_target_https_proxy" "main" {
   name            = google_compute_global_address.main.name
   url_map         = google_compute_url_map.https.id
   certificate_map = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.main.id}"
+  # Built with the project number rather than server_tls_policy.id (which uses the
+  # project ID) - the sibling cross-service reference in mtls_policy.client_validation_trust_config
+  # was confirmed to canonicalize to project-number form once live, forcing a
+  # perpetual diff; this reference is the same category (a compute.googleapis.com
+  # resource pointing into networksecurity.googleapis.com), so build it the same way
+  # up front.
+  server_tls_policy = "projects/${data.google_project.main.number}/locations/global/serverTlsPolicies/${google_network_security_server_tls_policy.cloudflare_origin_pull.name}"
 }
 
 resource "google_compute_target_http_proxy" "main" {
