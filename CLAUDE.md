@@ -58,14 +58,7 @@ external modules instead:
      certificate to keep renewing. The LB only accepts traffic from Cloudflare, which proxies DNS for
      this domain: a `google_compute_security_policy` (`CLOUD_ARMOR_EDGE`) allowlists Cloudflare's IP
      ranges — fetched live via the `cloudflare` provider's `cloudflare_ip_ranges` data source, chunked
-     into ≤10-CIDR rules — and is attached to the backend bucket via `edge_security_policy`; separately,
-     the target HTTPS proxy's `server_tls_policy` points at a `google_network_security_server_tls_policy`
-     whose `mtls_policy` (`REJECT_INVALID`) validates client certs against a
-     `google_certificate_manager_trust_config` trusting Cloudflare's shared Authenticated Origin Pull CA,
-     fetched at plan/apply time via a `data "http"` resource (the `hashicorp/http` provider) pointed at
-     Cloudflare's published cert URL, rather than committing the certificate into this repo. Enabling
-     Authenticated Origin Pulls and Full/Full(strict) SSL mode on the Cloudflare side is a manual step
-     this repo cannot perform (see README's Manual steps section).
+     into ≤10-CIDR rules — and is attached to the backend bucket via `edge_security_policy`.
   2. **Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by the
      `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
      `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).

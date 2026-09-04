@@ -14,10 +14,6 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 5.24.0"
     }
-    http = {
-      source  = "hashicorp/http"
-      version = "~> 3.6.1"
-    }
   }
 }
 
@@ -28,8 +24,4 @@ provider "google" {
 provider "cloudflare" {
   # This block is purposely empty. No credentials are required: this config only reads
   # Cloudflare's public, unauthenticated IP-ranges endpoint via a data source.
-}
-
-provider "http" {
-  # This block is purposely empty
 }
