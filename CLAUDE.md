@@ -54,7 +54,7 @@ external modules instead:
      `google_compute_url_map` (https, with a literal `host_rule` + `path_matcher` for `www.<domain>`
      mapping straight through to the backend bucket — no rewrite — plus a second `host_rule` +
      `path_matcher` for `webhooks.<domain>`, whose `path_matcher` has a dynamic `path_rule` per
-     `local.webhooks_flat` entry routing `/<provider>/<version>` to that entry's
+     `local.flattened_webhooks` entry routing `/<provider>/<version>` to that entry's
      `google_compute_backend_service`; both path_matchers fall back to the static bucket as
      `default_service`, and so does the url_map's own top-level `default_service`, which catches any
      other host) and a second url_map (http, unconditional redirect to https), target
@@ -69,7 +69,7 @@ external modules instead:
      `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
      `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).
      `www.<domain>` requests are served directly, path-for-path, from this bucket.
-  3. **Webhook CD targets** — `local.webhooks_flat` flattens the nested `var.webhooks` map
+  3. **Webhook CD targets** — `local.flattened_webhooks` flattens the nested `var.webhooks` map
      (provider => version => config) into a single map keyed `"<provider>-<version>"`, since
      `for_each` can't iterate a nested map directly. One `google_artifact_registry_repository`
      (shared, format `DOCKER`) plus one `google_cloud_run_v2_service` per flattened entry is created
@@ -100,7 +100,7 @@ and a `path_matcher` pointing at its backend service directly in `google_compute
 wildcard Certificate Manager cert already covers any `*.<domain>` hostname, so no certificate changes
 are needed. To add a new webhook provider/version instead, just add an entry to `var.webhooks` —
 the Cloud Run service, serverless NEG, backend service, and `webhooks.<domain>` path_rule all derive
-from `local.webhooks_flat` automatically.
+from `local.flattened_webhooks` automatically.
 
 ## Conventions
 

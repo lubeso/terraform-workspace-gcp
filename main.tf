@@ -75,10 +75,10 @@ resource "google_compute_url_map" "https" {
     name            = "webhooks"
     default_service = google_compute_backend_bucket.static.id
     dynamic "path_rule" {
-      for_each = local.webhooks_flat
+      for_each = local.flattened_webhooks
       content {
         paths   = ["/${path_rule.value.provider}/${path_rule.value.version}"]
-        service = google_compute_backend_service.webhook[path_rule.key].id
+        service = google_compute_backend_service.webhooks[path_rule.key].id
       }
     }
   }
@@ -154,7 +154,7 @@ resource "google_compute_security_policy" "cloudflare_only" {
 }
 
 locals {
-  webhooks_flat = merge([
+  flattened_webhooks = merge([
     for provider, versions in var.webhooks : {
       for version, config in versions :
       "${provider}-${version}" => {
@@ -166,14 +166,34 @@ locals {
   ]...)
 }
 
+moved {
+  from = google_cloud_run_v2_service.webhook
+  to   = google_cloud_run_v2_service.webhooks
+}
+
+moved {
+  from = google_compute_region_network_endpoint_group.webhook
+  to   = google_compute_region_network_endpoint_group.webhooks
+}
+
+moved {
+  from = google_compute_backend_service.webhook
+  to   = google_compute_backend_service.webhooks
+}
+
+moved {
+  from = google_cloud_run_v2_service_iam_member.webhook_invoker
+  to   = google_cloud_run_v2_service_iam_member.webhook_invokers
+}
+
 resource "google_artifact_registry_repository" "webhooks" {
   location      = data.google_client_config.main.region
   repository_id = "webhooks"
   format        = "DOCKER"
 }
 
-resource "google_cloud_run_v2_service" "webhook" {
-  for_each = local.webhooks_flat
+resource "google_cloud_run_v2_service" "webhooks" {
+  for_each = local.flattened_webhooks
   name     = "webhook-${each.key}"
   location = data.google_client_config.main.region
   ingress  = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
@@ -194,30 +214,30 @@ resource "google_cloud_run_v2_service" "webhook" {
   }
 }
 
-resource "google_compute_region_network_endpoint_group" "webhook" {
-  for_each              = local.webhooks_flat
+resource "google_compute_region_network_endpoint_group" "webhooks" {
+  for_each              = local.flattened_webhooks
   name                  = "webhook-${each.key}"
   region                = data.google_client_config.main.region
   network_endpoint_type = "SERVERLESS"
   cloud_run {
-    service = google_cloud_run_v2_service.webhook[each.key].name
+    service = google_cloud_run_v2_service.webhooks[each.key].name
   }
 }
 
-resource "google_compute_backend_service" "webhook" {
-  for_each             = local.webhooks_flat
+resource "google_compute_backend_service" "webhooks" {
+  for_each             = local.flattened_webhooks
   name                 = "webhook-${each.key}"
   edge_security_policy = google_compute_security_policy.cloudflare_only.id
   backend {
-    group = google_compute_region_network_endpoint_group.webhook[each.key].id
+    group = google_compute_region_network_endpoint_group.webhooks[each.key].id
   }
 }
 
-resource "google_cloud_run_v2_service_iam_member" "webhook_invoker" {
-  for_each = local.webhooks_flat
-  project  = google_cloud_run_v2_service.webhook[each.key].project
-  location = google_cloud_run_v2_service.webhook[each.key].location
-  name     = google_cloud_run_v2_service.webhook[each.key].name
+resource "google_cloud_run_v2_service_iam_member" "webhook_invokers" {
+  for_each = local.flattened_webhooks
+  project  = google_cloud_run_v2_service.webhooks[each.key].project
+  location = google_cloud_run_v2_service.webhooks[each.key].location
+  name     = google_cloud_run_v2_service.webhooks[each.key].name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
