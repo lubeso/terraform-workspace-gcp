@@ -65,6 +65,23 @@ resource "google_compute_url_map" "https" {
     name            = "www"
     default_service = google_compute_backend_bucket.static.id
   }
+
+  host_rule {
+    hosts        = ["webhooks.${var.domain}"]
+    path_matcher = "webhooks"
+  }
+
+  path_matcher {
+    name            = "webhooks"
+    default_service = google_compute_backend_bucket.static.id
+    dynamic "path_rule" {
+      for_each = local.webhooks_flat
+      content {
+        paths   = ["/${path_rule.value.provider}/${path_rule.value.version}"]
+        service = google_compute_backend_service.webhook[path_rule.key].id
+      }
+    }
+  }
 }
 
 resource "google_compute_url_map" "http" {
@@ -175,6 +192,34 @@ resource "google_cloud_run_v2_service" "webhook" {
   lifecycle {
     ignore_changes = [template[0].containers[0].image]
   }
+}
+
+resource "google_compute_region_network_endpoint_group" "webhook" {
+  for_each              = local.webhooks_flat
+  name                  = "webhook-${each.key}"
+  region                = data.google_client_config.main.region
+  network_endpoint_type = "SERVERLESS"
+  cloud_run {
+    service = google_cloud_run_v2_service.webhook[each.key].name
+  }
+}
+
+resource "google_compute_backend_service" "webhook" {
+  for_each             = local.webhooks_flat
+  name                 = "webhook-${each.key}"
+  edge_security_policy = google_compute_security_policy.cloudflare_only.id
+  backend {
+    group = google_compute_region_network_endpoint_group.webhook[each.key].id
+  }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "webhook_invoker" {
+  for_each = local.webhooks_flat
+  project  = google_cloud_run_v2_service.webhook[each.key].project
+  location = google_cloud_run_v2_service.webhook[each.key].location
+  name     = google_cloud_run_v2_service.webhook[each.key].name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
 
 resource "google_compute_backend_bucket" "static" {

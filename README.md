@@ -33,6 +33,13 @@ directories in this repo.
   buildpack — pushes it to the Artifact Registry repo, and deploys it onto
   the matching Cloud Run service; Terraform ignores changes to the deployed
   image so it won't fight CI.
+- Each webhook Cloud Run service sits behind its own serverless
+  `google_compute_region_network_endpoint_group` and
+  `google_compute_backend_service` (same Cloud Armor edge policy as the
+  static bucket, plus an `allUsers` `roles/run.invoker` binding since the
+  service itself only accepts traffic from the load balancer). The URL map
+  routes `webhooks.<domain>/<provider>/<version>` to the matching backend
+  service via a literal `path_rule` per `var.webhooks` entry.
 
 ## Requirements
 

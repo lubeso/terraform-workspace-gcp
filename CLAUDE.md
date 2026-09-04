@@ -52,8 +52,12 @@ external modules instead:
      `google_certificate_manager_certificate_map`, and two `google_certificate_manager_certificate_map_entry`
      resources for apex and wildcard) that the target HTTPS proxy references via `certificate_map`,
      `google_compute_url_map` (https, with a literal `host_rule` + `path_matcher` for `www.<domain>`
-     mapping straight through to the backend bucket — no rewrite — plus a top-level `default_service`
-     that catches any other host) and a second url_map (http, unconditional redirect to https), target
+     mapping straight through to the backend bucket — no rewrite — plus a second `host_rule` +
+     `path_matcher` for `webhooks.<domain>`, whose `path_matcher` has a dynamic `path_rule` per
+     `local.webhooks_flat` entry routing `/<provider>/<version>` to that entry's
+     `google_compute_backend_service`; both path_matchers fall back to the static bucket as
+     `default_service`, and so does the url_map's own top-level `default_service`, which catches any
+     other host) and a second url_map (http, unconditional redirect to https), target
      proxies, and global forwarding rules for ports 80/443. The classic
      `google_compute_managed_ssl_certificate` resource this LB used previously has been decommissioned;
      the DNS authorization CNAME (see outputs.tf) must still exist at the external DNS provider for the
@@ -74,8 +78,13 @@ external modules instead:
      `runtime` label (`"go"` by default, overridable e.g. to `"nodejs"`) that GitHub Actions CI reads
      to pick the Cloud Native Buildpacks (`pack`) builder when it builds and pushes the real image;
      `lifecycle { ignore_changes = [template[0].containers[0].image] }` keeps Terraform from
-     reverting CI's deploys. The LB routing (serverless NEG, backend service, `webhooks.<domain>`
-     host_rule/path_matcher) that actually exposes these services is added separately.
+     reverting CI's deploys. Each service is exposed via its own serverless
+     `google_compute_region_network_endpoint_group` (`cloud_run.service` pointing at the Cloud Run
+     service) behind a `google_compute_backend_service` (same `edge_security_policy` Cloud Armor
+     policy as the static bucket) plus a `google_cloud_run_v2_service_iam_member` granting `allUsers`
+     `roles/run.invoker` — the LB is the auth boundary (via `ingress =
+     "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"` on the service, so it rejects direct requests), same
+     pattern as the public static bucket.
   4. **OIDC/Workload Identity Federation trust** — two instances of the external module
      `github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0`, each creating a service account +
      WIF pool/provider:
@@ -86,10 +95,12 @@ external modules instead:
        impersonate an `owner`-role service account, restricted by `attribute_condition` to that
        workspace ID. This is what lets Terraform Cloud runs authenticate to GCP for this same config.
 
-When adding a new hostname (e.g. a `webhooks.<domain>` backend), add a `host_rule` (matching that
-hostname) and a `path_matcher` pointing at its backend service directly in `google_compute_url_map.https` —
-there's no `var.websites` list to derive from anymore. The wildcard Certificate Manager cert already
-covers any `*.<domain>` hostname, so no certificate changes are needed.
+When adding a new hostname beyond `www` and `webhooks`, add a `host_rule` (matching that hostname)
+and a `path_matcher` pointing at its backend service directly in `google_compute_url_map.https`. The
+wildcard Certificate Manager cert already covers any `*.<domain>` hostname, so no certificate changes
+are needed. To add a new webhook provider/version instead, just add an entry to `var.webhooks` —
+the Cloud Run service, serverless NEG, backend service, and `webhooks.<domain>` path_rule all derive
+from `local.webhooks_flat` automatically.
 
 ## Conventions
 
