@@ -8,7 +8,7 @@ This is a single Terraform root module (`terraform-workspace-gcp`) that provisio
 public-facing static hosting infrastructure and its CI/CD trust relationships. There are no
 sub-environments or workspace directories in this repo — it is applied as one Terraform Cloud
 workspace, and the workspace identity itself is a resource this config manages (see
-`module.oidc_terraform_cloud` in main.tf).
+`module.oidc_terraform_cloud` in oidc.tf).
 
 ## Commands
 
@@ -33,8 +33,8 @@ There is no test suite (no `.tftest.hcl` files) and no CI workflow defined in th
 
 ## Architecture
 
-Everything lives in four top-level files with no submodules of its own — `main.tf` composes
-external modules instead:
+There are no submodules of its own — the root module composes external modules instead. Resources
+are split across files by the same four logical groups, plus the data sources shared across them:
 
 - **providers.tf** — provider/version constraints only (`google ~> 5.32.0`, `random ~> 3.9.0`).
   The `provider "google"` block is intentionally empty; project/region/credentials come from the
@@ -45,8 +45,11 @@ external modules instead:
 - **outputs.tf** — `certificate_manager_dns_authorization_record`: the DNS CNAME (name/type/data)
   that must be created manually at the external DNS provider to authorize the Certificate Manager
   certificate below. This repo does not manage DNS records itself.
-- **main.tf** — four logical groups of resources:
-  1. **Global HTTPS load balancer for static sites** — `google_compute_global_address`,
+- **data.tf** — `data.google_client_config.main` and `data.google_project.main`, the two data
+  sources read from multiple of the files below.
+- **load_balancer.tf**, **storage.tf**, **webhooks.tf**, **oidc.tf** — the four logical groups of
+  resources:
+  1. **load_balancer.tf: Global HTTPS load balancer for static sites** — `google_compute_global_address`,
      a Certificate Manager certificate map (`google_certificate_manager_dns_authorization`,
      `google_certificate_manager_certificate` — one cert covering the apex domain and `*.<domain>`,
      `google_certificate_manager_certificate_map`, and two `google_certificate_manager_certificate_map_entry`
@@ -79,11 +82,11 @@ external modules instead:
      `server_tls_policy` previously failed with "ServerTlsPolicy is not available for ambiguous
      UrlMap". Enabling Authenticated Origin Pulls and Full/Full(strict) SSL mode on the Cloudflare side
      is a manual step this repo cannot perform (see README's Manual steps section).
-  2. **Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by the
+  2. **storage.tf: Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by the
      `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
      `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).
      `www.<domain>` requests are served directly, path-for-path, from this bucket.
-  3. **Webhook CD targets** — `local.flattened_webhooks` flattens the nested `var.webhooks` map
+  3. **webhooks.tf: Webhook CD targets** — `local.flattened_webhooks` flattens the nested `var.webhooks` map
      (provider => version => config) into a single map keyed `"<provider>-<version>"`, since
      `for_each` can't iterate a nested map directly. One `google_artifact_registry_repository`
      (shared, format `DOCKER`) plus one `google_cloud_run_v2_service` per flattened entry is created
@@ -99,7 +102,7 @@ external modules instead:
      `roles/run.invoker` — the LB is the auth boundary (via `ingress =
      "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"` on the service, so it rejects direct requests), same
      pattern as the public static bucket.
-  4. **OIDC/Workload Identity Federation trust** — two instances of the external module
+  4. **oidc.tf: OIDC/Workload Identity Federation trust** — two instances of the external module
      `github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0`, each creating a service account +
      WIF pool/provider:
      - `oidc_github_actions`: lets GitHub Actions in the repo owned by `var.github_owner_id`
