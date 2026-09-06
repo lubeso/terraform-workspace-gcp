@@ -73,10 +73,13 @@ are split across files by the same four logical groups, plus the data sources sh
      client certs against a `google_certificate_manager_trust_config` trusting Cloudflare's shared
      Authenticated Origin Pull CA, fetched at plan/apply time via a `data "http"` resource (the
      `hashicorp/http` provider) pointed at Cloudflare's published cert URL, rather than committing the
-     certificate into this repo. Both the trust config and the server TLS policy's cross-service
-     references are built from `data.google_project.main.number` rather than the resources' own `.id`
-     (which render in project-ID form) — GCP canonicalizes these references to project-*number* form
-     once live, so building them that way up front avoids a perpetual diff/force-replace. mTLS requires
+     certificate into this repo. The two cross-service references here canonicalize differently,
+     confirmed by observing what GCP actually returns on plan: `mtls_policy.client_validation_trust_config`
+     is built from `data.google_project.main.number`, since GCP canonicalizes it to project-*number*
+     path form, while the target HTTPS proxy's `server_tls_policy` is built as a full self-link
+     (`//networksecurity.googleapis.com/${...id}`) from the server TLS policy resource's own `.id`
+     (project-*ID* form) — the same pattern used for `certificate_map` above it. Building each the way
+     GCP canonicalizes it avoids a perpetual diff/force-replace. mTLS requires
      at least one real `google_compute_backend_service` on the load balancer alongside the backend
      bucket (satisfied by the webhook backend services); with only a backend bucket, attaching
      `server_tls_policy` previously failed with "ServerTlsPolicy is not available for ambiguous
