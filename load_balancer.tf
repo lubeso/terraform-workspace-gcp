@@ -65,7 +65,9 @@ resource "google_certificate_manager_trust_config" "cloudflare_origin_pull" {
 
   trust_stores {
     trust_anchors {
-      pem_certificate = trimspace(data.http.cloudflare_origin_pull_ca.response_body)
+      # GCP always stores/returns this with exactly one trailing newline;
+      # trimming it away entirely left a permanent diff on every plan.
+      pem_certificate = "${trimspace(data.http.cloudflare_origin_pull_ca.response_body)}\n"
     }
   }
 }
@@ -137,13 +139,11 @@ resource "google_compute_target_https_proxy" "main" {
   name            = google_compute_global_address.main.name
   url_map         = google_compute_url_map.https.id
   certificate_map = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.main.id}"
-  # Built with the project number rather than server_tls_policy.id (which uses the
-  # project ID) - the sibling cross-service reference in mtls_policy.client_validation_trust_config
-  # was confirmed to canonicalize to project-number form once live, forcing a
-  # perpetual diff; this reference is the same category (a compute.googleapis.com
-  # resource pointing into networksecurity.googleapis.com), so build it the same way
-  # up front.
-  server_tls_policy = "projects/${data.google_project.main.number}/locations/global/serverTlsPolicies/${google_network_security_server_tls_policy.cloudflare_origin_pull.name}"
+  # Confirmed via plan output that this field canonicalizes to a full self-link
+  # (project-ID form) rather than the project-number path used by the sibling
+  # mtls_policy.client_validation_trust_config reference above - same pattern as
+  # certificate_map above, built from the resource's own .id.
+  server_tls_policy = "//networksecurity.googleapis.com/${google_network_security_server_tls_policy.cloudflare_origin_pull.id}"
 }
 
 resource "google_compute_target_http_proxy" "main" {
