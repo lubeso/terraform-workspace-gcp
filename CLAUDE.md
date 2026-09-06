@@ -82,10 +82,17 @@ are split across files by the same four logical groups, plus the data sources sh
      `server_tls_policy` previously failed with "ServerTlsPolicy is not available for ambiguous
      UrlMap". Enabling Authenticated Origin Pulls and Full/Full(strict) SSL mode on the Cloudflare side
      is a manual step this repo cannot perform (see README's Manual steps section).
-  2. **storage.tf: Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by the
-     `terraform-google-modules/cloud-storage//modules/simple_bucket` module (public
-     `roles/storage.objectViewer` via `allUsers`, website `index.html` suffix, `force_destroy = true`).
-     `www.<domain>` requests are served directly, path-for-path, from this bucket.
+  2. **storage.tf: Static backend bucket** — `google_compute_backend_bucket` with CDN enabled (plus a
+     `google_compute_backend_bucket_signed_url_key`, keyed by a `random_id`, so Cloud CDN signed URLs
+     are available if needed later — nothing currently generates or requires them), backed by the
+     `terraform-google-modules/cloud-storage//modules/simple_bucket` module (`bucket_policy_only =
+     true` for uniform bucket-level access, `public_access_prevention = "enforced"`, website
+     `index.html` suffix, `force_destroy = true`). The bucket has no public IAM grants; instead the
+     load balancer reads objects via Cloud CDN's "Private Bucket Access" — a
+     `google_storage_bucket_iam_member` granting `roles/storage.objectViewer` to GCP's load-balancer
+     cache-fill service agent (`service-<project number>@https-lb.iam.gserviceaccount.com`, derived
+     from `data.google_project.main.number`), which Google's docs confirm is unaffected by public
+     access prevention. `www.<domain>` requests are served directly, path-for-path, from this bucket.
   3. **webhooks.tf: Webhook CD targets** — `local.flattened_webhooks` flattens the nested `var.webhooks` map
      (provider => version => config) into a single map keyed `"<provider>-<version>"`, since
      `for_each` can't iterate a nested map directly. One `google_artifact_registry_repository`

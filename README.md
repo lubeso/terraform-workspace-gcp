@@ -24,9 +24,13 @@ directories in this repo.
   `http` provider, never committed to this repo) via a
   `google_certificate_manager_trust_config` and
   `google_network_security_server_tls_policy`.
-- A public static storage bucket
-  (`terraform-google-modules/cloud-storage//modules/simple_bucket`) serving
-  `www.<domain>` requests directly, path-for-path.
+- A private static storage bucket
+  (`terraform-google-modules/cloud-storage//modules/simple_bucket`, uniform
+  bucket-level access, enforced public access prevention, no public IAM
+  grants) serving `www.<domain>` requests directly, path-for-path. The load
+  balancer reads it via Cloud CDN's Private Bucket Access rather than a
+  public grant. The backend bucket also has a Cloud CDN signed URL key
+  provisioned (`google_compute_backend_bucket_signed_url_key`) for future use.
 - Workload Identity Federation trust for GitHub Actions and for this
   Terraform Cloud workspace itself, via
   [`terraform-module-gcp-oidc`](https://github.com/lubeso/terraform-module-gcp-oidc).
