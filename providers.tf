@@ -25,6 +25,10 @@ provider "google" {
   # This block is purposely empty
 }
 
+provider "random" {
+  # This block is purposely empty
+}
+
 provider "cloudflare" {
   # This block is purposely empty. No credentials are required: this config only reads
   # Cloudflare's public, unauthenticated IP-ranges endpoint via a data source.
