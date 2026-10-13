@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents when working with code in this repository.
 
 ## Overview
 
@@ -113,7 +113,7 @@ are split across files by the same four logical groups, plus the data sources sh
      "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"` on the service, so it rejects direct requests), same
      pattern as the public static bucket.
   4. **oidc.tf: OIDC/Workload Identity Federation trust** — two instances of the external module
-     `github.com/lubeso/terraform-module-gcp-oidc.git?ref=v0`, each creating a service account +
+     `github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.1.0`, each creating a service account +
      WIF pool/provider:
      - `oidc_github_actions`: lets GitHub Actions in the repo owned by `var.github_owner_id`
        impersonate a service account (artifact registry, Cloud Build, Cloud Run, storage admin

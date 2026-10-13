@@ -1,5 +1,5 @@
 module "oidc_github_actions" {
-  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.0.0"
+  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.1.0"
   project = data.google_client_config.main.project
   service_account = {
     account_id   = "github-actions"
@@ -44,7 +44,7 @@ module "oidc_github_actions" {
 }
 
 module "oidc_terraform_cloud" {
-  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.0.0"
+  source  = "github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.1.0"
   project = data.google_client_config.main.project
   service_account = {
     account_id   = "terraform-cloud"

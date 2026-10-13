@@ -88,6 +88,13 @@ Real values are supplied via Terraform Cloud workspace variables or a local
 | Name | Description |
 |------|-------------|
 | `certificate_manager_dns_authorization_record` | DNS CNAME (name/type/data) that must be created manually at the external DNS provider to authorize the Certificate Manager certificate. This repo does not manage DNS records itself. |
+| `gcp_project_id` | GCP Project ID. |
+| `gcp_region` | GCP region hosting Cloud Run services and Artifact Registry. |
+| `artifact_registry_repository_id` | Artifact Registry Docker repository ID for webhook images. |
+| `github_actions_workload_identity_provider` | Full resource name of the WIF provider for GitHub Actions (supply to `terraform-workspace-github` `var.workload_identity_provider`). |
+| `github_actions_service_account_email` | Email of the service account for GitHub Actions (supply to `terraform-workspace-github` `var.github_actions_service_account_email`). |
+| `terraform_cloud_workload_identity_provider` | Full resource name of the WIF provider for Terraform Cloud. |
+| `terraform_cloud_service_account_email` | Email of the service account for Terraform Cloud. |
 
 ## Manual steps
 
