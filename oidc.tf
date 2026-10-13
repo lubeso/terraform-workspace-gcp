@@ -11,9 +11,6 @@ module "oidc_github_actions" {
         }
       }
       roles = [
-        "artifactregistry.admin",
-        "cloudbuild.builds.builder",
-        "run.admin",
         "storage.admin",
       ]
     }

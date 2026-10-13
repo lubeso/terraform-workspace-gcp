@@ -15,22 +15,17 @@ output "gcp_project_id" {
 }
 
 output "gcp_region" {
-  description = "GCP region hosting Cloud Run services and Artifact Registry."
+  description = "GCP region hosting static resources and Cloud Storage."
   value       = data.google_client_config.main.region
 }
 
-output "artifact_registry_repository_id" {
-  description = "Artifact Registry Docker repository ID for webhook images."
-  value       = google_artifact_registry_repository.webhooks.repository_id
-}
-
 output "github_actions_workload_identity_provider" {
-  description = "Full resource name of the WIF provider for GitHub Actions (supply to terraform-workspace-github var.workload_identity_provider)."
+  description = "Full resource name of the WIF provider for GitHub Actions."
   value       = module.oidc_github_actions.workload_identity_pool_provider_name
 }
 
 output "github_actions_service_account_email" {
-  description = "Email of the service account for GitHub Actions (supply to terraform-workspace-github var.github_actions_service_account_email)."
+  description = "Email of the service account for GitHub Actions."
   value       = module.oidc_github_actions.service_account_email
 }
 

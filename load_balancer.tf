@@ -48,51 +48,36 @@ resource "google_certificate_manager_certificate_map_entry" "wildcard" {
   hostname     = "*.${var.domain}"
 }
 
-data "http" "cloudflare_origin_pull_ca" {
-  url = "https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem"
+resource "google_compute_security_policy" "cloudflare_only" {
+  name = "cloudflare-only"
+  type = "CLOUD_ARMOR_EDGE"
 
-  lifecycle {
-    postcondition {
-      condition     = self.status_code == 200
-      error_message = "Failed to fetch the Cloudflare Authenticated Origin Pull CA certificate (HTTP ${self.status_code})."
+  dynamic "rule" {
+    for_each = local.cloudflare_ip_range_chunks
+    content {
+      action   = "allow"
+      priority = 1000 + rule.key
+      match {
+        versioned_expr = "SRC_IPS_V1"
+        config {
+          src_ip_ranges = rule.value
+        }
+      }
+      description = "Allow traffic from Cloudflare IP range chunk ${rule.key}"
     }
   }
-}
 
-resource "google_certificate_manager_trust_config" "cloudflare_origin_pull" {
-  name     = "cloudflare-origin-pull"
-  location = "global"
-
-  trust_stores {
-    trust_anchors {
-      # GCP always stores/returns this with exactly one trailing newline;
-      # trimming it away entirely left a permanent diff on every plan.
-      pem_certificate = "${trimspace(data.http.cloudflare_origin_pull_ca.response_body)}\n"
+  rule {
+    action   = "deny(403)"
+    priority = 2147483647
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
     }
+    description = "Default deny all non-Cloudflare traffic"
   }
-}
-
-resource "google_project_service" "network_security" {
-  project            = data.google_client_config.main.project
-  service            = "networksecurity.googleapis.com"
-  disable_on_destroy = false
-}
-
-resource "google_network_security_server_tls_policy" "cloudflare_origin_pull" {
-  name       = "cloudflare-origin-pull"
-  location   = "global"
-  allow_open = "false"
-
-  mtls_policy {
-    client_validation_mode = "REJECT_INVALID"
-    # GCP canonicalizes this reference to the project *number* form once the resource
-    # exists, so build it that way up front rather than with trust_config.id (which
-    # uses the project ID) - otherwise every subsequent plan sees a diff on this
-    # immutable field and force-replaces the policy.
-    client_validation_trust_config = "projects/${data.google_project.main.number}/locations/global/trustConfigs/${google_certificate_manager_trust_config.cloudflare_origin_pull.name}"
-  }
-
-  depends_on = [google_project_service.network_security]
 }
 
 resource "google_compute_url_map" "https" {
@@ -108,23 +93,6 @@ resource "google_compute_url_map" "https" {
     name            = "www"
     default_service = google_compute_backend_bucket.static.id
   }
-
-  host_rule {
-    hosts        = ["webhooks.${var.domain}"]
-    path_matcher = "webhooks"
-  }
-
-  path_matcher {
-    name            = "webhooks"
-    default_service = google_compute_backend_bucket.static.id
-    dynamic "path_rule" {
-      for_each = local.flattened_webhooks
-      content {
-        paths   = ["/${path_rule.value.provider}/${path_rule.value.version}"]
-        service = google_compute_backend_service.webhooks[path_rule.key].id
-      }
-    }
-  }
 }
 
 resource "google_compute_url_map" "http" {
@@ -139,11 +107,6 @@ resource "google_compute_target_https_proxy" "main" {
   name            = google_compute_global_address.main.name
   url_map         = google_compute_url_map.https.id
   certificate_map = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.main.id}"
-  # Confirmed via plan output that this field canonicalizes to a full self-link
-  # (project-ID form) rather than the project-number path used by the sibling
-  # mtls_policy.client_validation_trust_config reference above - same pattern as
-  # certificate_map above, built from the resource's own .id.
-  server_tls_policy = "//networksecurity.googleapis.com/${google_network_security_server_tls_policy.cloudflare_origin_pull.id}"
 }
 
 resource "google_compute_target_http_proxy" "main" {
@@ -167,36 +130,4 @@ resource "google_compute_global_forwarding_rule" "http" {
   ip_protocol           = "TCP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   port_range            = "80"
-}
-
-resource "google_compute_security_policy" "cloudflare_only" {
-  name = "cloudflare-only"
-  type = "CLOUD_ARMOR_EDGE"
-
-  dynamic "rule" {
-    for_each = local.cloudflare_ip_range_chunks
-    content {
-      action      = "allow"
-      priority    = 1000 + rule.key
-      description = "Allow Cloudflare edge IP ranges"
-      match {
-        versioned_expr = "SRC_IPS_V1"
-        config {
-          src_ip_ranges = rule.value
-        }
-      }
-    }
-  }
-
-  rule {
-    action      = "deny(403)"
-    priority    = 2147483647
-    description = "Default deny: traffic not from Cloudflare"
-    match {
-      versioned_expr = "SRC_IPS_V1"
-      config {
-        src_ip_ranges = ["*"]
-      }
-    }
-  }
 }

@@ -18,12 +18,7 @@ directories in this repo.
   for this domain: a Cloud Armor edge security policy
   (`google_compute_security_policy`, type `CLOUD_ARMOR_EDGE`) allowlists
   Cloudflare's published IP ranges (fetched live via the `cloudflare` provider's
-  `cloudflare_ip_ranges` data source) on the backend bucket, and the target HTTPS
-  proxy requires Authenticated Origin Pulls — mutual TLS validated against
-  Cloudflare's shared origin-pull CA (fetched live from Cloudflare's docs via the
-  `http` provider, never committed to this repo) via a
-  `google_certificate_manager_trust_config` and
-  `google_network_security_server_tls_policy`.
+  `cloudflare_ip_ranges` data source) on the backend bucket.
 - A private static storage bucket
   (`terraform-google-modules/cloud-storage//modules/simple_bucket`, uniform
   bucket-level access, enforced public access prevention, no public IAM
@@ -31,24 +26,9 @@ directories in this repo.
   balancer reads it via Cloud CDN's Private Bucket Access rather than a
   public grant. The backend bucket also has a Cloud CDN signed URL key
   provisioned (`google_compute_backend_bucket_signed_url_key`) for future use.
-- Workload Identity Federation trust for GitHub Actions and for this
-  Terraform Cloud workspace itself, via
+- Workload Identity Federation trust for GitHub Actions (storage admin role)
+  and for this Terraform Cloud workspace itself, via
   [`terraform-module-gcp-oidc`](https://github.com/lubeso/terraform-module-gcp-oidc).
-- CD target resources for webhook handlers: an Artifact Registry Docker
-  repository plus one `google_cloud_run_v2_service` per (provider, version)
-  entry in `var.webhooks`, each starting out on a placeholder image. GitHub
-  Actions CI (outside this repo) builds the real image with Cloud Native
-  Buildpacks (`pack`) — using the service's `runtime` label to pick the
-  buildpack — pushes it to the Artifact Registry repo, and deploys it onto
-  the matching Cloud Run service; Terraform ignores changes to the deployed
-  image so it won't fight CI.
-- Each webhook Cloud Run service sits behind its own serverless
-  `google_compute_region_network_endpoint_group` and
-  `google_compute_backend_service` (same Cloud Armor edge policy as the
-  static bucket, plus an `allUsers` `roles/run.invoker` binding since the
-  service itself only accepts traffic from the load balancer). The URL map
-  routes `webhooks.<domain>/<provider>/<version>` to the matching backend
-  service via a literal `path_rule` per `var.webhooks` entry.
 
 ## Requirements
 
@@ -58,7 +38,6 @@ directories in this repo.
 | google | ~> 7.45.0 |
 | random | ~> 3.9.0 |
 | cloudflare | ~> 5.24.0 |
-| http | ~> 3.6.1 |
 
 ## Usage
 
@@ -76,7 +55,6 @@ Formatting, provider-lock, and validation are enforced via
 | Name | Description | Type |
 |------|-------------|------|
 | `domain` | Apex domain; `www.<domain>` is served from the static bucket. | `string` |
-| `webhooks` | Provider => version => config for webhook Cloud Run services, routed at `webhooks.<domain>/<provider>/<version>`. | `map(map(object({ runtime = optional(string, "go") })))` |
 | `github_owner_id` | GitHub user/org ID allowed to assume the GitHub Actions service account via WIF. | `number` |
 | `terraform_workspace_id` | Terraform Cloud workspace ID allowed to assume the Terraform Cloud service account via WIF. | `string` |
 
@@ -89,10 +67,9 @@ Real values are supplied via Terraform Cloud workspace variables or a local
 |------|-------------|
 | `certificate_manager_dns_authorization_record` | DNS CNAME (name/type/data) that must be created manually at the external DNS provider to authorize the Certificate Manager certificate. This repo does not manage DNS records itself. |
 | `gcp_project_id` | GCP Project ID. |
-| `gcp_region` | GCP region hosting Cloud Run services and Artifact Registry. |
-| `artifact_registry_repository_id` | Artifact Registry Docker repository ID for webhook images. |
-| `github_actions_workload_identity_provider` | Full resource name of the WIF provider for GitHub Actions (supply to `terraform-workspace-github` `var.workload_identity_provider`). |
-| `github_actions_service_account_email` | Email of the service account for GitHub Actions (supply to `terraform-workspace-github` `var.github_actions_service_account_email`). |
+| `gcp_region` | GCP region hosting static resources and Cloud Storage. |
+| `github_actions_workload_identity_provider` | Full resource name of the WIF provider for GitHub Actions. |
+| `github_actions_service_account_email` | Email of the service account for GitHub Actions. |
 | `terraform_cloud_workload_identity_provider` | Full resource name of the WIF provider for Terraform Cloud. |
 | `terraform_cloud_service_account_email` | Email of the service account for Terraform Cloud. |
 
@@ -101,10 +78,6 @@ Real values are supplied via Terraform Cloud workspace variables or a local
 This repo does not manage Cloudflare-side configuration. In addition to the DNS authorization
 record above, the following must be set in the Cloudflare dashboard for the domain:
 
-- **Authenticated Origin Pulls (Global)** must be enabled under SSL/TLS → Origin Server. The
-  load balancer's target HTTPS proxy rejects any connection that doesn't present Cloudflare's
-  shared origin-pull client certificate.
-- The zone's **SSL/TLS encryption mode** must be set to **Full** or **Full (strict)** —
-  Authenticated Origin Pulls has no effect under Flexible or Off.
+- The zone's **SSL/TLS encryption mode** must be set to **Full** or **Full (strict)**.
 - DNS records for `var.domain` and `www.<domain>` must be proxied (orange-clouded) through
   Cloudflare, not DNS-only — this is already assumed by the Cloud Armor IP allowlist.

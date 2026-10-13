@@ -24,110 +24,48 @@ Standard Terraform workflow:
 
 ```bash
 terraform init
-terraform fmt -recursive
-terraform validate
 terraform plan
+terraform apply
+terraform providers lock \
+  -platform=darwin_arm64 -platform=darwin_amd64 \
+  -platform=linux_amd64 -platform=linux_arm64   # regenerate .terraform.lock.hcl (keep all four platforms)
 ```
 
-There is no test suite (no `.tftest.hcl` files) and no CI workflow defined in this repo.
+## Structure
 
-## Architecture
-
-There are no submodules of its own — the root module composes external modules instead. Resources
-are split across files by the same four logical groups, plus the data sources shared across them:
-
-- **providers.tf** — provider/version constraints only (`google ~> 5.32.0`, `random ~> 3.9.0`).
-  The `provider "google"` block is intentionally empty; project/region/credentials come from the
-  environment (Terraform Cloud workspace variables), not from this file.
-- **variables.tf** — all inputs: `domain`, `webhooks` (nested map, see below), `github_owner_id`,
-  `terraform_workspace_id`.
-  No defaults are set here; real values live in `.tfvars` (gitignored) or workspace variables.
-- **outputs.tf** — `certificate_manager_dns_authorization_record`: the DNS CNAME (name/type/data)
-  that must be created manually at the external DNS provider to authorize the Certificate Manager
-  certificate below. This repo does not manage DNS records itself.
+- **providers.tf** — `required_version ~> 1.15.0`, provider pins (`google ~> 7.45.0`,
+  `random ~> 3.9.0`, `cloudflare ~> 5.24.0`), and empty provider blocks; credentials come from
+  environment variables configured in the Terraform Cloud workspace.
+- **variables.tf** — all inputs: `domain`, `github_owner_id`, and `terraform_workspace_id`.
+- **outputs.tf** — `certificate_manager_dns_authorization_record`, project/region outputs,
+  and WIF/service account identity outputs for GitHub Actions and Terraform Cloud.
 - **data.tf** — `data.google_client_config.main` and `data.google_project.main`, the two data
-  sources read from multiple of the files below.
-- **load_balancer.tf**, **storage.tf**, **webhooks.tf**, **oidc.tf** — the four logical groups of
-  resources:
+  sources read from multiple files.
+- **load_balancer.tf**, **storage.tf**, **oidc.tf** — the three logical groups of resources:
   1. **load_balancer.tf: Global HTTPS load balancer for static sites** — `google_compute_global_address`,
      a Certificate Manager certificate map (`google_certificate_manager_dns_authorization`,
-     `google_certificate_manager_certificate` — one cert covering the apex domain and `*.<domain>`,
+     `google_certificate_manager_certificate` covering the apex domain and `*.<domain>`,
      `google_certificate_manager_certificate_map`, and two `google_certificate_manager_certificate_map_entry`
-     resources for apex and wildcard) that the target HTTPS proxy references via `certificate_map`,
-     `google_compute_url_map` (https, with a literal `host_rule` + `path_matcher` for `www.<domain>`
-     mapping straight through to the backend bucket — no rewrite — plus a second `host_rule` +
-     `path_matcher` for `webhooks.<domain>`, whose `path_matcher` has a dynamic `path_rule` per
-     `local.flattened_webhooks` entry routing `/<provider>/<version>` to that entry's
-     `google_compute_backend_service`; both path_matchers fall back to the static bucket as
-     `default_service`, and so does the url_map's own top-level `default_service`, which catches any
-     other host) and a second url_map (http, unconditional redirect to https), target
-     proxies, and global forwarding rules for ports 80/443. The classic
-     `google_compute_managed_ssl_certificate` resource this LB used previously has been decommissioned;
-     the DNS authorization CNAME (see outputs.tf) must still exist at the external DNS provider for the
-     certificate to keep renewing. The LB only accepts traffic from Cloudflare, which proxies DNS for
-     this domain: a `google_compute_security_policy` (`CLOUD_ARMOR_EDGE`) allowlists Cloudflare's IP
-     ranges — fetched live via the `cloudflare` provider's `cloudflare_ip_ranges` data source, chunked
-     into ≤10-CIDR rules — and is attached to the backend bucket and each webhook backend service via
-     `edge_security_policy`; separately, the target HTTPS proxy's `server_tls_policy` points at a
-     `google_network_security_server_tls_policy` whose `mtls_policy` (`REJECT_INVALID`) validates
-     client certs against a `google_certificate_manager_trust_config` trusting Cloudflare's shared
-     Authenticated Origin Pull CA, fetched at plan/apply time via a `data "http"` resource (the
-     `hashicorp/http` provider) pointed at Cloudflare's published cert URL, rather than committing the
-     certificate into this repo. The two cross-service references here canonicalize differently,
-     confirmed by observing what GCP actually returns on plan: `mtls_policy.client_validation_trust_config`
-     is built from `data.google_project.main.number`, since GCP canonicalizes it to project-*number*
-     path form, while the target HTTPS proxy's `server_tls_policy` is built as a full self-link
-     (`//networksecurity.googleapis.com/${...id}`) from the server TLS policy resource's own `.id`
-     (project-*ID* form) — the same pattern used for `certificate_map` above it. Building each the way
-     GCP canonicalizes it avoids a perpetual diff/force-replace. mTLS requires
-     at least one real `google_compute_backend_service` on the load balancer alongside the backend
-     bucket (satisfied by the webhook backend services); with only a backend bucket, attaching
-     `server_tls_policy` previously failed with "ServerTlsPolicy is not available for ambiguous
-     UrlMap". Enabling Authenticated Origin Pulls and Full/Full(strict) SSL mode on the Cloudflare side
-     is a manual step this repo cannot perform (see README's Manual steps section).
-  2. **storage.tf: Static backend bucket** — `google_compute_backend_bucket` with CDN enabled (plus a
-     `google_compute_backend_bucket_signed_url_key`, keyed by a `random_id`, so Cloud CDN signed URLs
-     are available if needed later — nothing currently generates or requires them), backed by the
-     `terraform-google-modules/cloud-storage//modules/simple_bucket` module (`bucket_policy_only =
-     true` for uniform bucket-level access, `public_access_prevention = "enforced"`, website
-     `index.html` suffix, `force_destroy = true`). The bucket has no public IAM grants; instead the
-     load balancer reads objects via Cloud CDN's "Private Bucket Access" — a
-     `google_storage_bucket_iam_member` granting `roles/storage.objectViewer` to GCP's load-balancer
-     cache-fill service agent (`service-<project number>@https-lb.iam.gserviceaccount.com`, derived
-     from `data.google_project.main.number`), which Google's docs confirm is unaffected by public
-     access prevention. `www.<domain>` requests are served directly, path-for-path, from this bucket.
-  3. **webhooks.tf: Webhook CD targets** — `local.flattened_webhooks` flattens the nested `var.webhooks` map
-     (provider => version => config) into a single map keyed `"<provider>-<version>"`, since
-     `for_each` can't iterate a nested map directly. One `google_artifact_registry_repository`
-     (shared, format `DOCKER`) plus one `google_cloud_run_v2_service` per flattened entry is created
-     from this — each service starts on a placeholder image (`ingress =
-     "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"`, so it's only reachable once wired to the LB) with a
-     `runtime` label (`"go"` by default, overridable e.g. to `"nodejs"`) that GitHub Actions CI reads
-     to pick the Cloud Native Buildpacks (`pack`) builder when it builds and pushes the real image;
-     `lifecycle { ignore_changes = [template[0].containers[0].image] }` keeps Terraform from
-     reverting CI's deploys. Each service is exposed via its own serverless
-     `google_compute_region_network_endpoint_group` (`cloud_run.service` pointing at the Cloud Run
-     service) behind a `google_compute_backend_service` (same `edge_security_policy` Cloud Armor
-     policy as the static bucket) plus a `google_cloud_run_v2_service_iam_member` granting `allUsers`
-     `roles/run.invoker` — the LB is the auth boundary (via `ingress =
-     "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"` on the service, so it rejects direct requests), same
-     pattern as the public static bucket.
-  4. **oidc.tf: OIDC/Workload Identity Federation trust** — two instances of the external module
-     `github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.1.0`, each creating a service account +
-     WIF pool/provider:
+     resources for apex and wildcard), `google_compute_url_map` (https, with a literal `host_rule` +
+     `path_matcher` for `www.<domain>` routing straight through to the backend bucket),
+     `google_compute_url_map` (http, redirecting to https), target proxies, and global forwarding rules.
+     The load balancer only accepts traffic from Cloudflare: a `google_compute_security_policy`
+     (`CLOUD_ARMOR_EDGE`) allowlists Cloudflare's published IP ranges chunked into ≤10-CIDR rules.
+  2. **storage.tf: Static backend bucket** — `google_compute_backend_bucket` with CDN enabled, backed by
+     the `terraform-google-modules/cloud-storage//modules/simple_bucket` module. Served directly via
+     Cloud CDN's "Private Bucket Access" (`google_storage_bucket_iam_member` granting
+     `roles/storage.objectViewer` to GCP's load-balancer service agent).
+  3. **oidc.tf: OIDC/Workload Identity Federation trust** — two instances of the external module
+     `github.com/lubeso/terraform-module-gcp-oidc.git?ref=v1.1.0`:
      - `oidc_github_actions`: lets GitHub Actions in the repo owned by `var.github_owner_id`
-       impersonate a service account (artifact registry, Cloud Build, Cloud Run, storage admin
-       roles), restricted by `attribute_condition` to `refs/heads/main` or tag pushes.
+       impersonate a service account (`storage.admin` role), restricted by `attribute_condition`
+       to `refs/heads/main` or tag pushes.
      - `oidc_terraform_cloud`: lets the specific Terraform Cloud workspace (`var.terraform_workspace_id`)
-       impersonate an `owner`-role service account, restricted by `attribute_condition` to that
-       workspace ID. This is what lets Terraform Cloud runs authenticate to GCP for this same config.
+       impersonate an `owner`-role service account.
 
-When adding a new hostname beyond `www` and `webhooks`, add a `host_rule` (matching that hostname)
-and a `path_matcher` pointing at its backend service directly in `google_compute_url_map.https`. The
-wildcard Certificate Manager cert already covers any `*.<domain>` hostname, so no certificate changes
-are needed. To add a new webhook provider/version instead, just add an entry to `var.webhooks` —
-the Cloud Run service, serverless NEG, backend service, and `webhooks.<domain>` path_rule all derive
-from `local.flattened_webhooks` automatically.
+When adding a new hostname beyond `www`, add a `host_rule` and `path_matcher` in
+`google_compute_url_map.https`. The wildcard Certificate Manager cert already covers any
+`*.<domain>` hostname.
 
 ## Conventions
 
